@@ -245,16 +245,16 @@ CONTEXT_WINDOW=204800
 MAX_TOKENS=8192
 ```
 
-作为第二提供商（同时保留默认提供商）：
+作为额外提供商（同时保留默认提供商）：
 
 ```bash
-MODEL2_NAME=minimax
-MODEL2_MODEL_ID=MiniMax-M2.5,MiniMax-M2.5-highspeed
-MODEL2_BASE_URL=https://api.minimax.io/v1
-MODEL2_API_KEY=your-minimax-api-key
-MODEL2_PROTOCOL=openai-completions
-MODEL2_CONTEXT_WINDOW=204800
-MODEL2_MAX_TOKENS=8192
+MODEL3_NAME=minimax
+MODEL3_MODEL_ID=MiniMax-M2.5,MiniMax-M2.5-highspeed
+MODEL3_BASE_URL=https://api.minimax.io/v1
+MODEL3_API_KEY=your-minimax-api-key
+MODEL3_PROTOCOL=openai-completions
+MODEL3_CONTEXT_WINDOW=204800
+MODEL3_MAX_TOKENS=8192
 ```
 
 > 💡 MiniMax 也支持 Anthropic 协议，将 `BASE_URL` 设为 `https://api.minimax.io/anthropic`、`API_PROTOCOL` 设为 `anthropic-messages` 即可。国内用户可将域名替换为 `api.minimaxi.com`（注意多一个 `i`）。API Key 可在 [MiniMax 开放平台](https://platform.minimax.io) 获取。
