@@ -188,6 +188,16 @@ nano .env
 docker-compose up -d
 ```
 
+## 使用效果
+
+### 飞书机器人
+
+![image-20260314203514523](README.assets/image-20260314203514523.png)
+
+### qq机器人
+
+![image-20260315025833756](README.assets/image-20260315025833756.png)
+
 ## 配置
 
 配置文件:
@@ -832,6 +842,8 @@ DINGTALK_AGENT_ID=your-dingtalk-agent-id
 3. 获取 AppID 和 AppSecret（ClientSecret）
 4. 获取主机在公网的 IP，配置到 IP 白名单
 
+![image-20260315025002882](README.assets/image-20260315025002882.png)
+
 #### 2. 环境变量配置（单 Bot）
 
 在 `.env` 文件中添加：
@@ -841,9 +853,11 @@ QQBOT_APP_ID=你的AppID
 QQBOT_CLIENT_SECRET=你的AppSecret
 ```
 
-> 💡 **提示**：单账号配置会自动同步为 `channels.qqbot.accounts.default` 结构。
+> 💡 **提示**：单账号配置会自动同步为 `channels.qqbot.accounts.default` 结构.
 
-#### 3. 多 Bot 配置（Multi-Bot）
+![](README.assets/image-20260315025446494.png) 
+
+#### 多 Bot 配置（Multi-Bot）
 
 如需配置多个 QQ 机器人，可以使用 `QQBOT_BOTS_JSON` 环境变量。
 
@@ -1419,8 +1433,3 @@ docker logs -f openclaw-gateway
 ```
 
 ![image-20260315011655194](README.assets/image-20260315011655194.png)
-
-## 使用效果
-
-![image-20260314203514523](README.assets/image-20260314203514523.png)
-
