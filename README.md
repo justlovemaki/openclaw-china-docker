@@ -10,13 +10,47 @@
 - [`.dockerignore`](.dockerignore) - Docker 构建忽略文件
 - [`openclaw.json.example`](openclaw.json.example) - OpenClaw 默认配置文件示例
 
-## 参考
+## 参考项目
 
  https://github.com/justlovemaki/OpenClaw-Docker-CN-IM
 
 ## 部署
 
-### 方式一：使用预构建镜像（推荐）
+### 镜像源配置
+
+**docker镜像源**
+
+```bash
+mkdir -p /etc/docker
+
+cat > /etc/docker/daemon.json << 'EOF'
+{
+  "registry-mirrors": [
+    "https://docker.m.daocloud.io",
+    "https://docker.1panel.live",
+    "https://hub.rat.dev",
+    "https://docker.mirrors.ustc.edu.cn"
+  ]
+}
+EOF
+
+systemctl restart docker
+```
+
+**apt镜像源**
+
+```bash
+sudo vim /etc/apt/sources.list
+
+deb https://mirrors.aliyun.com/ubuntu/ jammy main restricted universe multiverse
+deb https://mirrors.aliyun.com/ubuntu/ jammy-updates main restricted universe multiverse
+deb https://mirrors.aliyun.com/ubuntu/ jammy-backports main restricted universe multiverse
+deb https://mirrors.aliyun.com/ubuntu/ jammy-security main restricted universe multiverse
+
+sudo apt update
+```
+
+### 方式一：使用预构建镜像
 
 #### 1. 下载配置文件
 
@@ -131,6 +165,8 @@ cd openclaw-docker-cn
 ```
 
 #### 2. 本地构建镜像
+
+可以注释不需要的插件, 加速构建镜像
 
 ```bash
 docker build -t openclaw:local .
