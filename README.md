@@ -170,6 +170,8 @@ cd openclaw-docker-cn
 docker build -t openclaw:local .
 ```
 
+![image-20260316115104914](C:/Users/16658/AppData/Roaming/Typora/typora-user-images/image-20260316115104914.png)
+
 ### 3. 配置环境变量
 
 ```bash
