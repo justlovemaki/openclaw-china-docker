@@ -1,9 +1,0 @@
-{
-  "file": "src/commands/onboard-non-interactive/local/auth-choice.api-key-providers.ts",
-  "description": "胜算云 - 非交互式 onboard 认证处理逻辑（openclaw onboard --shengsuanyun-api-key xxx）",
-  "replacements": {
-    "import { applyOpenAIConfig } from \"../../openai-model-default.js\";": "import { applyOpenAIConfig } from \"../../openai-model-default.js\";\nimport { applyShengsuanyunConfig, setShengSuanYunApiKey } from \"../../onboard-auth.js\";",
-
-    "    {\n      authChoices: [\"together-api-key\"],\n      provider: \"together\",": "    {\n      authChoices: [\"shengsuanyun-api-key\"],\n      provider: \"shengsuanyun\",\n      flagName: \"--shengsuanyun-api-key\",\n      envVar: \"SHENGSUANYUN_API_KEY\",\n      profileId: \"shengsuanyun:default\",\n      setCredential: withStorage(setShengSuanYunApiKey),\n      applyConfig: (cfg) =>\n        applyShengsuanyunConfig(\n          applyAuthProfileConfig(cfg, {\n            profileId: \"shengsuanyun:default\",\n            provider: \"shengsuanyun\",\n            mode: \"api_key\",\n          }),\n        ),\n    },\n    {\n      authChoices: [\"together-api-key\"],\n      provider: \"together\","
-  }
-}

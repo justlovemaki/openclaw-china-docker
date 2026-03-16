@@ -1,5 +1,0 @@
-User-agent: *
-Allow: /
-Disallow: /js/
-
-Sitemap: https://openclaw.qt.cool/sitemap.xml

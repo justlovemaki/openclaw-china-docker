@@ -1,7 +1,0 @@
-{
-  "file": "src/commands/auth-choice.apply.volcengine.ts",
-  "description": "火山引擎认证流程翻译",
-  "replacements": {
-    "promptMessage: \"Enter Volcano Engine API key\"": "promptMessage: \"请输入火山引擎 API 密钥\""
-  }
-}

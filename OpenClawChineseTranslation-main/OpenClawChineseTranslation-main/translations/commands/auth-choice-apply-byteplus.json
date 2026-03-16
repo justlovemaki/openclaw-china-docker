@@ -1,7 +1,0 @@
-{
-  "file": "src/commands/auth-choice.apply.byteplus.ts",
-  "description": "BytePlus 认证流程翻译",
-  "replacements": {
-    "promptMessage: \"Enter BytePlus API key\"": "promptMessage: \"请输入 BytePlus API 密钥\""
-  }
-}

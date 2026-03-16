@@ -1,7 +1,0 @@
-{
-  "file": "src/gateway/server.impl.ts",
-  "description": "胜算云工具预加载 - 网关启动时提前拉取多模态工具列表",
-  "replacements": {
-    "import { initSubagentRegistry } from \"../agents/subagent-registry.js\";": "import { initSubagentRegistry } from \"../agents/subagent-registry.js\";\nimport { preloadShengSuanYunTools } from \"../agents/tools/shengsuanyun/generate.js\";"
-  }
-}

@@ -1,7 +1,0 @@
-{
-  "file": "src/commands/auth-choice.apply.xai.ts",
-  "description": "xAI (Grok) 认证配置",
-  "replacements": {
-    "promptMessage: \"Enter xAI API key\"": "promptMessage: \"输入 xAI API 密钥\""
-  }
-}

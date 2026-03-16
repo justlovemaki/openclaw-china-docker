@@ -1,7 +1,0 @@
-{
-  "file": "src/auto-reply/reply/commands-subagents.ts",
-  "description": "子代理命令 - 主入口",
-  "replacements": {
-    "\"⚠️ Missing session key.\"": "\"⚠️ 缺少会话键。\""
-  }
-}

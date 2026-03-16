@@ -1,8 +1,0 @@
-{
-  "file": "src/tui/tui.ts",
-  "description": "TUI 终端界面 - 设备配对提示",
-  "replacements": {
-    "\"pairing required: run openclaw devices list\"": "\"需要配对：运行 openclaw devices list\"",
-    "\"Pairing required. Run `openclaw devices list`, approve your request ID, then reconnect.\"": "\"需要设备配对。运行 `openclaw devices list`，批准你的请求 ID，然后重新连接。\""
-  }
-}

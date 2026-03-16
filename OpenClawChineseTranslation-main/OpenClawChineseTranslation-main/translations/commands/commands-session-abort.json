@@ -1,7 +1,0 @@
-{
-  "file": "src/auto-reply/reply/commands-session-abort.ts",
-  "description": "会话中止命令翻译",
-  "replacements": {
-    "\"⚙️ Agent was aborted.\"": "\"⚙️ 代理已中止。\""
-  }
-}

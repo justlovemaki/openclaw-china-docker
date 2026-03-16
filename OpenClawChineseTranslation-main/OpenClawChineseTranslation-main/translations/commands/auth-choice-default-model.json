@@ -1,8 +1,0 @@
-{
-  "file": "src/commands/auth-choice.default-model.ts",
-  "description": "默认模型配置提示",
-  "replacements": {
-    "`Default model set to ${params.noteDefault}`": "`默认模型已设置为 ${params.noteDefault}`",
-    "\"Model configured\"": "\"模型已配置\""
-  }
-}

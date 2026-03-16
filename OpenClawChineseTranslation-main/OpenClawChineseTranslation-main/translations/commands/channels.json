@@ -1,8 +1,0 @@
-{
-  "file": "src/commands/channels/list.ts",
-  "description": "通道列表命令",
-  "replacements": {
-    "theme.heading(\"Chat channels:\")": "theme.heading(\"聊天通道：\")",
-    "theme.heading(\"Auth providers (OAuth + API keys):\")": "theme.heading(\"认证提供商（OAuth + API 密钥）：\")"
-  }
-}

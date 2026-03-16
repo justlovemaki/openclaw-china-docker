@@ -1,7 +1,0 @@
-{
-  "file": "src/gateway/control-ui-csp.ts",
-  "description": "Dashboard CSP 策略 — 放行胜算云 API 域名和 qt.cool 域名",
-  "replacements": {
-    "\"connect-src 'self' ws: wss:\"": "\"connect-src 'self' ws: wss: https://*.shengsuanyun.com https://*.qt.cool\""
-  }
-}

@@ -1,9 +1,0 @@
-{
-  "file": "src/auto-reply/reply/commands-subagents/shared.ts",
-  "description": "子代理命令 - 共享模块（帮助文本）",
-  "replacements": {
-    "\"Subagents\"": "\"子代理\"",
-    "\"Usage:\"": "\"用法：\"",
-    "\"Ids: use the list index (#), runId/session prefix, label, or full session key.\"": "\"ID：使用列表序号（#）、runId/会话前缀、标签或完整会话键。\""
-  }
-}

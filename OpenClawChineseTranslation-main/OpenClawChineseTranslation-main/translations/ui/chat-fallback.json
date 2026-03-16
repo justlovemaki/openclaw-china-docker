@@ -1,8 +1,0 @@
-{
-  "file": "ui/src/ui/views/chat.ts",
-  "description": "Dashboard 聊天视图 - fallback 模型指示器",
-  "replacements": {
-    "`Fallback cleared: ${status.selected}`": "`回退已清除：${status.selected}`",
-    "`Fallback active: ${status.active}`": "`回退生效中：${status.active}`"
-  }
-}

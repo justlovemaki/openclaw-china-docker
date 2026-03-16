@@ -8,8 +8,9 @@ WORKDIR /app
 ENV BUN_INSTALL="/usr/local" \
     PATH="/usr/local/bin:$PATH" \
     DEBIAN_FRONTEND=noninteractive
+    #apt 安装时不使用交互模式，避免弹出确认对话框
 
-# 1. 合并系统依赖安装与全局工具安装，并清理缓存
+# 1.安装软件包(包括OpenClaw)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     bash \
@@ -40,22 +41,44 @@ RUN apt-get update && \
     git config --system url."https://github.com/".insteadOf ssh://git@github.com/ && \
     # 更新 npm 并安装全局包
     npm install -g npm@latest && \
-    npm install -g openclaw@2026.3.13 opencode-ai@latest playwright playwright-extra puppeteer-extra-plugin-stealth @steipete/bird && \
-    # 安装 bun、uv 和 qmd
+    #  通过 npm全局安openclaw@2026.3.1安装到/usr/local/lib/node_modules/openclaw/目录
+    npm install -g openclaw@2026.3.12 opencode-ai@latest playwright playwright-extra puppeteer-extra-plugin-stealth @steipete/bird && \
+    # 安装 bun 和 qmd，并在失败时直接终止构建
     curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr/local bash && \
-    curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh && \
-    npm install -g @tobilu/qmd@1.1.6 && \
+    /usr/local/bin/bun install -g @tobilu/qmd && \
+    command -v qmd >/dev/null 2>&1 && \
+    qmd --version >/dev/null 2>&1 && \
     # 安装 Playwright 浏览器依赖
     npx playwright install chromium --with-deps && \
     # 清理 apt 缓存
     apt-get purge -y --auto-remove && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /root/.npm /root/.cache
+#解释： 合并系统依赖安装与全局工具安装，并清理缓存 #更新 apt 包索引并安装系统级依赖
+    #bash：Shell 解释器
+    #ca-certificates：SSL 证书
+    #chromium：浏览器（用于网页自动化）
+    #curl：HTTP 客户端工具
+    #build-essential：编译工具链（gcc、make 等）
+    #ffmpeg：音视频处理工具
+    #fonts-*：各种字体（包括中文和 emoji）
+    #git：版本控制工具
+    #gosu：在容器内切换用户的工具
+    #jq：JSON 处理工具
+    #locales：本地化支持
+    #openssh-client：SSH 客户端
+    #procps：进程监控工具（ps、top 等）
+    #python3：Python 解释器
+    #socat：网络工具，用于端口转发
+    #tini：轻量级 init 系统，用于正确管理容器进程
+    #unzip：解压工具
+    #websockify：WebSocket 代理工具
 
-# 2. 插件安装（作为 node 用户以避免后期权限修复带来的镜像膨胀）
+# 2. 创建 OpenClaw 的工作空间和插件目录，并将所有者设置为 node 用户。（作为 node 用户以避免后期权限修复带来的镜像膨胀）
 RUN mkdir -p /home/node/.openclaw/workspace /home/node/.openclaw/extensions && \
     chown -R node:node /home/node
 
+# 设置 node 用户的家目录和工作目
 USER node
 ENV HOME=/home/node
 WORKDIR /home/node
@@ -66,36 +89,63 @@ RUN mkdir -p /home/node/.linuxbrew/Homebrew && \
     mkdir -p /home/node/.linuxbrew/bin && \
     ln -s /home/node/.linuxbrew/Homebrew/bin/brew /home/node/.linuxbrew/bin/brew && \
     chown -R node:node /home/node/.linuxbrew && \
-    chmod -R g+rwX /home/node/.linuxbrew
+    chmod -R g+rwX /home/node/.linuxbrew \
+#解释：安装 Linuxbrew（Linux 上的包管理器）：
+     #创建目录结构
+     #克隆 Homebrew 仓库（--depth 1 表示只克隆最近一次 commit，减小体积）
+     #创建符号链接使 brew 命令可用
+     #设置正确的权限
 
+# 安装插件
 RUN cd /home/node/.openclaw/extensions && \
   git clone --depth 1 https://github.com/soimy/openclaw-channel-dingtalk.git dingtalk && \
   cd dingtalk && \
   npm install --omit=dev --legacy-peer-deps && \
   timeout 300 openclaw plugins install -l . || true && \
+#解释：安装钉钉插件：
+     #克隆钉钉渠道插件源码
+     #安装生产依赖（--omit=dev 忽略开发依赖）
+     #--legacy-peer-deps 忽略 peerDependencies 冲突
+     #使用 openclaw plugins install 注册插件（-l 表示本地安装）
+     #timeout 300 限制安装时间不超过 300 秒
+     #|| true 即使失败也不中断构建
+
   cd /home/node/.openclaw/extensions && \
   git clone --depth 1 -b v4.17.25 https://github.com/Daiyimo/openclaw-napcat.git napcat && \
   cd napcat && \
   npm install --production && \
   timeout 300 openclaw plugins install -l . || true && \
+#解释：安装 NapCat（QQ 机器人框架）插件：
+     #克隆指定版本（v4.17.25）的 Napcat 插件
+     #只安装生产依赖
+     #注册插件
   cd /home/node/.openclaw && \
   git clone https://github.com/sliverp/qqbot.git && \
   cd qqbot && \
   timeout 300 bash ./scripts/upgrade.sh || true && \
   timeout 300 openclaw plugins install . || true && \
+#解释：安装 QQ 机器人插件：
+     #克隆 qqbot 项目
+     #执行升级脚本
+     #注册插件
   timeout 300 openclaw plugins install @sunnoy/wecom || true && \
+#解释：安装企业微信插件（从 npm 安装）
   mkdir -p /home/node/.openclaw && \
   printf '{\n  "channels": {\n    "feishu": {\n      "enabled": false,\n      "appId": "2222222222222222",\n      "appSecret": "1111111111111111",\n      "accounts": {\n        "default": {\n          "appId": "2222222222222222",\n          "appSecret": "1111111111111111",\n          "botName": "OpenClaw Bot"\n        }\n      }\n    }\n  }\n}\n' > /home/node/.openclaw/openclaw.json && \
-  # 预执行安装命令（容器内需手动交互，此处仅作声明或环境准备）
+#解释：创建一个基础的 openclaw.json 配置文件，包含飞书频道的占位配置（ appId 和 appSecret 是示例值）。
+  # 预执行安装命令（飞书插件需要在容器内需手动交互，暂时注释）
   # npx -y @larksuite/openclaw-lark-tools install && \
   find /home/node/.openclaw/extensions -name ".git" -type d -exec rm -rf {} + && \
   rm -rf /home/node/.openclaw/qqbot/.git && \
-  rm -rf /tmp/* /home/node/.npm /home/node/.cache
+  rm -rf /tmp/* /home/node/.npm /home/node/.cache \
+#解释：清理工作：
+     #删除所有插件目录中的 .git 文件夹（减小镜像体积）
+     #删除临时文件和缓存
   
-# 3. 最终配置
+# 3. 切换回 root 用户，以便进行后续的系统级配置（如复制文件、设置权限等）。
 USER root
 
-# 复制初始化脚本并确保换行符为 LF
+# 复制 init.sh 脚本到容器的 /usr/local/bin/ 目
 COPY ./init.sh /usr/local/bin/init.sh
 RUN sed -i 's/\r$//' /usr/local/bin/init.sh && \
     chmod +x /usr/local/bin/init.sh
@@ -111,12 +161,24 @@ ENV HOME=/home/node \
     PATH="/home/node/.linuxbrew/bin:/home/node/.linuxbrew/sbin:/usr/local/lib/node_modules/.bin:${PATH}" \
     HOMEBREW_NO_AUTO_UPDATE=1 \
     HOMEBREW_NO_INSTALL_CLEANUP=1
+#解释：设置容器运行时的环境变量：
+     #HOME：家目录
+     #TERM：终端类型
+     #NODE_PATH：Node.js 模块搜索路径
+     #LANG/LANGUAGE/LC_ALL：本地化和字符集设置
+     #NODE_ENV=production：生产环境模式
+     #PATH：添加 Linuxbrew 和全局 npm 模块到 PATH
+     #HOMEBREW_*：禁用 Homebrew 的自动更新和清理，加快速度
 
 # 暴露端口
 EXPOSE 18789 18790
 
-# 设置工作目录为 home
+# 设置工作目录为 home, 将最终的工作目录设置为 node 用户的家目录
 WORKDIR /home/node
 
 # 使用初始化脚本作为入口点
 ENTRYPOINT ["/bin/bash", "/usr/local/bin/init.sh"]
+#解释：设置容器的入口点为 init.sh 脚本，容器启动时会执行这个脚本，负责：
+     #检查和修复挂载目录权限
+     #根据环境变量生成配置文件
+     #启动 OpenClaw Gateway 服务
