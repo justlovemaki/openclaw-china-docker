@@ -7,10 +7,14 @@ WORKDIR /app
 # 设置环境变量
 ENV BUN_INSTALL="/usr/local" \
     PATH="/usr/local/bin:$PATH" \
+    NPM_CONFIG_REGISTRY="https://registry.npmmirror.com" \
+    GITHUB="https://cdn.gh-proxy.org/https://github.com" \
+    UV_INSTALLER_GITHUB_BASE_URL="https://cdn.gh-proxy.org/https://github.com" \
     DEBIAN_FRONTEND=noninteractive
 
 # 1. 合并系统依赖安装与全局工具安装，并清理缓存
-RUN apt-get update && \
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources && \
+    apt-get update && \
     apt-get install -y --no-install-recommends \
     bash \
     ca-certificates \
@@ -36,8 +40,9 @@ RUN apt-get update && \
     locale-gen && \
     # update-locale 在部分 slim 基础镜像中会返回 invalid locale settings，这里改为直接写入默认 locale 配置
     printf 'LANG=en_US.UTF-8\nLANGUAGE=en_US:en\nLC_ALL=en_US.UTF-8\n' > /etc/default/locale && \
-    # 配置 git 使用 HTTPS 替代 SSH
-    git config --system url."https://github.com/".insteadOf ssh://git@github.com/ && \
+    # 替换国内源
+    git config --system url."https://gitclone.com/github.com/".insteadOf "ssh://git@github.com/" && \
+    git config --system url."https://cdn.gh-proxy.org/https://github.com/".insteadOf "https://github.com/" && \
     # 更新 npm 并安装全局包
     npm install -g npm@latest && \
     npm install -g openclaw@2026.3.13 opencode-ai@latest playwright playwright-extra puppeteer-extra-plugin-stealth @steipete/bird && \
