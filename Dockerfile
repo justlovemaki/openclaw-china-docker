@@ -1,6 +1,10 @@
 # OpenClaw Docker 镜像
 FROM node:22-slim
 
+# 设置镜像加速
+RUN sed -i 's/deb.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list.d/debian.sources \
+    && sed -i 's|security.debian.org/debian-security|mirrors.tuna.tsinghua.edu.cn/debian-security|g' /etc/apt/sources.list.d/debian.sources
+
 # 设置工作目录
 WORKDIR /app
 
@@ -9,18 +13,13 @@ ENV BUN_INSTALL="/usr/local" \
     PATH="/usr/local/bin:$PATH" \
     DEBIAN_FRONTEND=noninteractive
 
-# 1. 合并系统依赖安装与全局工具安装，并清理缓存
+# ========== 步骤 1: 基础系统依赖（轻量级，快速） ==========
+# 只安装核心工具，不安装 chromium/ffmpeg（后面单独处理）
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     bash \
     ca-certificates \
-    chromium \
     curl \
-    build-essential \
-    ffmpeg \
-    fonts-liberation \
-    fonts-noto-cjk \
-    fonts-noto-color-emoji \
     git \
     gosu \
     jq \
@@ -31,28 +30,50 @@ RUN apt-get update && \
     socat \
     tini \
     unzip \
-    websockify && \
+    websockify \
+    build-essential && \
     sed -i 's/^# *en_US.UTF-8 UTF-8$/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
     locale-gen && \
-    # update-locale 在部分 slim 基础镜像中会返回 invalid locale settings，这里改为直接写入默认 locale 配置
     printf 'LANG=en_US.UTF-8\nLANGUAGE=en_US:en\nLC_ALL=en_US.UTF-8\n' > /etc/default/locale && \
-    # 配置 git 使用 HTTPS 替代 SSH
     git config --system url."https://github.com/".insteadOf ssh://git@github.com/ && \
-    # 更新 npm 并安装全局包
-    npm install -g npm@latest && \
-    npm install -g openclaw@2026.3.13 opencode-ai@latest playwright playwright-extra puppeteer-extra-plugin-stealth @steipete/bird && \
-    # 安装 bun、uv 和 qmd
-    curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr/local bash && \
-    curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh && \
-    npm install -g @tobilu/qmd@1.1.6 && \
-    # 安装 Playwright 浏览器依赖
-    npx playwright install chromium --with-deps && \
-    # 清理 apt 缓存
-    apt-get purge -y --auto-remove && \
     apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /root/.npm /root/.cache
+    rm -rf /var/lib/apt/lists/*
 
-# 2. 插件安装（作为 node 用户以避免后期权限修复带来的镜像膨胀）
+# ========== 步骤 2: 安装 Bun（单独一层，易缓存） ==========
+RUN BUN_VERSION="1.1.19" && \
+    ARCH="x64" && \
+    OS="linux" && \
+    curl -fsSL --retry 3 --max-time 120 "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-${OS}-${ARCH}.zip" -o /tmp/bun.zip && \
+    unzip -q /tmp/bun.zip -d /tmp && \
+    mv /tmp/bun-${OS}-${ARCH}/bun /usr/local/bin/bun && \
+    chmod +x /usr/local/bin/bun && \
+    rm -rf /tmp/bun.zip /tmp/bun-${OS}-${ARCH}
+
+# ========== 步骤 3: 安装 openclaw和npm全局包（易变，放前面） ==========
+RUN npm install -g npm@latest && \
+    npm install -g openclaw@2026.3.13 opencode-ai@latest playwright playwright-extra puppeteer-extra-plugin-stealth @steipete/bird @tobilu/qmd@1.1.6 && \
+    rm -rf /root/.npm
+
+# ========== 步骤 4: 安装 uv ==========
+RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
+
+# ========== 步骤 5: 安装 Playwright 浏览器（很大，单独一层） ==========
+# 先安装浏览器系统依赖
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    chromium \
+    ffmpeg \
+    fonts-liberation \
+    fonts-noto-cjk \
+    fonts-noto-color-emoji && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# 再安装 Playwright Chromium
+RUN npx playwright install chromium
+
+# ========== 步骤 6: 安装 OpenClaw 插件, 如果有插件安装失败,可以在容器内手动安装 ==========
+# 1. 插件安装（作为 node 用户以避免后期权限修复带来的镜像膨胀）
 RUN mkdir -p /home/node/.openclaw/workspace /home/node/.openclaw/extensions && \
     chown -R node:node /home/node
 
@@ -60,7 +81,7 @@ USER node
 ENV HOME=/home/node
 WORKDIR /home/node
 
-# 安装linuxbrew（Homebrew 的 Linux 版本），并配置环境变量
+# 2. 安装 Linuxbrew（Linux 上的包管理器）
 RUN mkdir -p /home/node/.linuxbrew/Homebrew && \
     git clone --depth 1 https://github.com/Homebrew/brew /home/node/.linuxbrew/Homebrew && \
     mkdir -p /home/node/.linuxbrew/bin && \
@@ -68,6 +89,7 @@ RUN mkdir -p /home/node/.linuxbrew/Homebrew && \
     chown -R node:node /home/node/.linuxbrew && \
     chmod -R g+rwX /home/node/.linuxbrew
 
+ # 3. 安装插件plugins
 RUN cd /home/node/.openclaw/extensions && \
   git clone --depth 1 https://github.com/soimy/openclaw-channel-dingtalk.git dingtalk && \
   cd dingtalk && \
@@ -78,20 +100,19 @@ RUN cd /home/node/.openclaw/extensions && \
   cd napcat && \
   npm install --production && \
   timeout 300 openclaw plugins install -l . || true && \
-  cd /home/node/.openclaw && \
-  git clone https://github.com/sliverp/qqbot.git && \
-  cd qqbot && \
-  timeout 300 bash ./scripts/upgrade.sh || true && \
-  timeout 300 openclaw plugins install . || true && \
+  # 安装QQ机器人
+  openclaw plugins install @sliverp/qqbot@latest && \
+  #openclaw plugins install @tencent-connect/openclaw-qqbot@latest && \
   timeout 300 openclaw plugins install @sunnoy/wecom || true && \
+  #创建一个飞书基础的openclaw.json配置文件
   mkdir -p /home/node/.openclaw && \
   printf '{\n  "channels": {\n    "feishu": {\n      "enabled": false,\n      "appId": "2222222222222222",\n      "appSecret": "1111111111111111",\n      "accounts": {\n        "default": {\n          "appId": "2222222222222222",\n          "appSecret": "1111111111111111",\n          "botName": "OpenClaw Bot"\n        }\n      }\n    }\n  }\n}\n' > /home/node/.openclaw/openclaw.json && \
   # 预执行安装命令（容器内需手动交互，此处仅作声明或环境准备）
   # npx -y @larksuite/openclaw-lark-tools install && \
   find /home/node/.openclaw/extensions -name ".git" -type d -exec rm -rf {} + && \
   rm -rf /home/node/.openclaw/qqbot/.git && \
-  rm -rf /tmp/* /home/node/.npm /home/node/.cache
-  
+  rm -rf /tmp/* /home/node/.npm /home/node/.cache 2>/dev/null || true
+
 # 3. 最终配置
 USER root
 

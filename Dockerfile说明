@@ -108,7 +108,8 @@ RUN cd /home/node/.openclaw/extensions && \
      #--legacy-peer-deps 忽略 peerDependencies 冲突
      #使用 openclaw plugins install 注册插件（-l 表示本地安装）
      #timeout 300 限制安装时间不超过 300 秒
-     #|| true 即使失败也不中断构建
+     #|| true 即使失败也不中断构建 \
+    #timeout 300 openclaw plugins install -l . || true && \ 作用: 从当前目录安装插件到 OpenClaw，最多给 300 秒时间。如果安装失败或超时，也不要中断 Docker 构建，继续执行下一步。
 
   cd /home/node/.openclaw/extensions && \
   git clone --depth 1 -b v4.17.25 https://github.com/Daiyimo/openclaw-napcat.git napcat && \
@@ -127,7 +128,15 @@ RUN cd /home/node/.openclaw/extensions && \
 #解释：安装 QQ 机器人插件：
      #克隆 qqbot 项目
      #执行升级脚本
-     #注册插件
+     #注册插件 \
+    #|| true && \ 是一个 Shell 命令组合，让我拆解一下：
+         #各部分含义：
+         #timeout 300 - 限制命令最多执行 300 秒，超时则强制终止
+         #openclaw plugins install @sliverp/qqbot@latest - 安装 qqbot 插件
+         #|| - "或"操作符，当前面的命令失败（返回非 0）时执行后面的命令
+         #true - 一个永远成功的命令（返回 0）
+         #&& - "与"操作符，当前面的命令成功时才执行后面的命令
+         #\ - 续行符，表示命令延续到下一行
   timeout 300 openclaw plugins install @sunnoy/wecom || true && \
 #解释：安装企业微信插件（从 npm 安装）
   mkdir -p /home/node/.openclaw && \
