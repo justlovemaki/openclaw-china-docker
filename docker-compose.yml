@@ -154,6 +154,8 @@ x-openclaw-common-env: &openclaw-common-env
   OPENCLAW_PLUGINS_ENABLED: ${OPENCLAW_PLUGINS_ENABLED}
   # 工具配置
   OPENCLAW_TOOLS_JSON: ${OPENCLAW_TOOLS_JSON}
+  # 技能配置 JSON
+  SKILLS_CONFIG_JSON: ${SKILLS_CONFIG_JSON}
 
 # 主服务
 services:
@@ -179,7 +181,7 @@ services:
     init: true
     restart: unless-stopped
 
-  # 辅助容器，专门用于安装和管理 OpenClaw 插件
+  # 辅助容器，专门用于安装和管理 OpenClaw 插件/技能
   # docker-compose --profile tools up -d openclaw-installer
   # docker exec -it openclaw-installer bash
   openclaw-installer:
