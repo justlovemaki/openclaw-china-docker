@@ -168,13 +168,16 @@ cd openclaw-docker-cn
 
 ```bash
 docker build -t openclaw:local .
-docker build --network=host -t openclaw:local .
+docker build --network=host -t openclaw:local . 
 
+#强制重新构建
+docker build --network=host --no-cache -t openclaw:local . 
 
+#并行构建
 export DOCKER_BUILDKIT=1
-docker build --progress=plain -t openclaw . 2>&1 | tee build.log
+docker build --network=host --no-cache -t openclaw:local-skills . 
 
-# 2. 如果某一步总是失败，单独调试该步骤
+# 如果某一步总是失败，单独调试该步骤
 docker build --target=<step_name> .
 ```
 
@@ -189,8 +192,7 @@ cp .env.example .env
 # 编辑配置文件（至少配置LLM相关参数）
 nano .env
 
-#
-# Docker 镜像配置                                                                
+# Docker 镜像配置                       
 OPENCLAW_IMAGE=openclaw:local    
 ```
 
@@ -424,6 +426,8 @@ openclaw skills list
 ![image-20260314210122982](README.assets/image-20260314210122982.png)
 
 ## 本地skills安装
+
+在宿主机操作
 
 ```bash
  ./install-skill.sh jira-diagnosis ./conversation-diagnosis-jira
@@ -1491,20 +1495,27 @@ volumes:
 
 ## 重启容器
 
-```
+```bash
 docker-compose restart openclaw-gateway
 ```
 
 ## 重新构建
 
-```
+```bash
 docker compose up -d --force-recreate
 cat ~/.openclaw/openclaw.json  
 ```
 
+## 停止删除
+
+```bash
+docker stop openclaw-gateway
+docker rm openclaw-gateway
+```
+
 ## 进入容器
 
-```
+```bash
 docker exec -it openclaw-gateway /bin/bash
 ```
 
@@ -1512,8 +1523,8 @@ docker exec -it openclaw-gateway /bin/bash
 
 ## 查看运行日志
 
-```
-docker logs -f openclaw-gateway                       
+```bash
+docker logs -f openclaw-gateway             
 ```
 
 ![image-20260315011655194](README.assets/image-20260315011655194.png)
