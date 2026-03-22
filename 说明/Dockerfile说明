@@ -155,7 +155,7 @@ RUN cd /home/node/.openclaw/extensions && \
 USER root
 
 # 复制 init.sh 脚本到容器的 /usr/local/bin/ 目
-COPY ./init.sh /usr/local/bin/init.sh
+COPY ../init.sh /usr/local/bin/init.sh
 RUN sed -i 's/\r$//' /usr/local/bin/init.sh && \
     chmod +x /usr/local/bin/init.sh
 

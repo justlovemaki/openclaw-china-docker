@@ -1,0 +1,146 @@
+# OpenClaw Docker 镜像
+FROM node:22-slim
+
+# 设置镜像加速
+RUN sed -i 's/deb.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list.d/debian.sources \
+    && sed -i 's|security.debian.org/debian-security|mirrors.tuna.tsinghua.edu.cn/debian-security|g' /etc/apt/sources.list.d/debian.sources
+
+# 设置工作目录
+WORKDIR /app
+
+# 设置环境变量
+ENV BUN_INSTALL="/usr/local" \
+    PATH="/usr/local/bin:$PATH" \
+    DEBIAN_FRONTEND=noninteractive
+
+# ========== 步骤 1: 基础系统依赖（轻量级，快速） ==========
+# 只安装核心工具，不安装 chromium/ffmpeg（后面单独处理）
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    bash \
+    ca-certificates \
+    curl \
+    git \
+    gosu \
+    jq \
+    locales \
+    openssh-client \
+    procps \
+    python3 \
+    socat \
+    tini \
+    unzip \
+    websockify \
+    build-essential && \
+    sed -i 's/^# *en_US.UTF-8 UTF-8$/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
+    locale-gen && \
+    printf 'LANG=en_US.UTF-8\nLANGUAGE=en_US:en\nLC_ALL=en_US.UTF-8\n' > /etc/default/locale && \
+    git config --system url."https://github.com/".insteadOf ssh://git@github.com/ && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# ========== 步骤 2: 安装 Bun（单独一层，易缓存） ==========
+#RUN BUN_VERSION="1.1.19" && \
+#    ARCH="x64" && \
+#    OS="linux" && \
+#    curl -fsSL --retry 3 --max-time 120 "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-${OS}-${ARCH}.zip" -o /tmp/bun.zip && \
+#    unzip -q /tmp/bun.zip -d /tmp && \
+#    mv /tmp/bun-${OS}-${ARCH}/bun /usr/local/bin/bun && \
+#    chmod +x /usr/local/bin/bun && \
+#    rm -rf /tmp/bun.zip /tmp/bun-${OS}-${ARCH}
+
+# ========== 步骤 3: 安装 openclaw和npm全局包（易变，放前面） ==========
+#RUN npm install -g npm@latest && \
+#    npm install -g openclaw@2026.3.13 opencode-ai@latest playwright playwright-extra puppeteer-extra-plugin-stealth @steipete/bird @tobilu/qmd@1.1.6 && \
+#    rm -rf /root/.npm \
+RUN npm install -g npm@latest && \
+    npm install -g openclaw@2026.3.13 opencode-ai@latest && \
+    rm -rf /root/.npm
+
+# ========== 步骤 4: 安装 uv ==========
+RUN #curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
+
+# ========== 步骤 5: 安装 Playwright 浏览器（很大，单独一层） ==========
+# 先安装浏览器系统依赖
+#RUN apt-get update && \
+#    apt-get install -y --no-install-recommends \
+#    chromium \
+#    ffmpeg \
+#    fonts-liberation \
+#    fonts-noto-cjk \
+#    fonts-noto-color-emoji && \
+#    apt-get clean && \
+#    rm -rf /var/lib/apt/lists/*
+
+# 再安装 Playwright Chromium
+RUN #npx playwright install chromium
+
+# ========== 步骤 6: 安装 OpenClaw 插件, 如果有插件安装失败,可以在容器内手动安装 ==========
+# 1. 插件安装（作为 node 用户以避免后期权限修复带来的镜像膨胀）
+RUN mkdir -p /home/node/.openclaw/workspace /home/node/.openclaw/extensions && \
+    chown -R node:node /home/node
+
+USER node
+ENV HOME=/home/node
+WORKDIR /home/node
+
+# 2. 安装 Linuxbrew（Linux 上的包管理器）
+#RUN mkdir -p /home/node/.linuxbrew/Homebrew && \
+#    git clone --depth 1 https://github.com/Homebrew/brew /home/node/.linuxbrew/Homebrew && \
+#    mkdir -p /home/node/.linuxbrew/bin && \
+#    ln -s /home/node/.linuxbrew/Homebrew/bin/brew /home/node/.linuxbrew/bin/brew && \
+#    chown -R node:node /home/node/.linuxbrew && \
+#    chmod -R g+rwX /home/node/.linuxbrew
+
+ # 3. 安装插件plugins
+RUN #cd /home/node/.openclaw/extensions && \
+#  git clone --depth 1 https://github.com/soimy/openclaw-channel-dingtalk.git dingtalk && \
+#  cd dingtalk && \
+#  npm install --omit=dev --legacy-peer-deps && \
+#  timeout 300 openclaw plugins install -l . || true && \
+#  cd /home/node/.openclaw/extensions && \
+#  git clone --depth 1 -b v4.17.25 https://github.com/Daiyimo/openclaw-napcat.git napcat && \
+#  cd napcat && \
+#  npm install --production && \
+#  timeout 300 openclaw plugins install -l . || true && \
+  # 安装QQ机器人
+  openclaw plugins install @sliverp/qqbot@latest && \
+  #openclaw plugins install @tencent-connect/openclaw-qqbot@latest && \
+#  timeout 300 openclaw plugins install @sunnoy/wecom || true && \
+  #创建一个飞书基础的openclaw.json配置文件
+  mkdir -p /home/node/.openclaw && \
+  printf '{\n  "channels": {\n    "feishu": {\n      "enabled": false,\n      "appId": "2222222222222222",\n      "appSecret": "1111111111111111",\n      "accounts": {\n        "default": {\n          "appId": "2222222222222222",\n          "appSecret": "1111111111111111",\n          "botName": "OpenClaw Bot"\n        }\n      }\n    }\n  }\n}\n' > /home/node/.openclaw/openclaw.json && \
+  # 预执行安装命令（容器内需手动交互，此处仅作声明或环境准备）
+  # npx -y @larksuite/openclaw-lark-tools install && \
+  find /home/node/.openclaw/extensions -name ".git" -type d -exec rm -rf {} + && \
+  rm -rf /home/node/.openclaw/qqbot/.git && \
+  rm -rf /tmp/* /home/node/.npm /home/node/.cache 2>/dev/null || true
+
+# 3. 最终配置
+USER root
+
+# 复制初始化脚本并确保换行符为 LF
+COPY ../init.sh /usr/local/bin/init.sh
+RUN sed -i 's/\r$//' /usr/local/bin/init.sh && \
+    chmod +x /usr/local/bin/init.sh
+
+# 设置环境变量
+ENV HOME=/home/node \
+    TERM=xterm-256color \
+    NODE_PATH=/usr/local/lib/node_modules \
+    LANG=en_US.UTF-8 \
+    LANGUAGE=en_US:en \
+    LC_ALL=en_US.UTF-8 \
+    NODE_ENV=production \
+    PATH="/home/node/.linuxbrew/bin:/home/node/.linuxbrew/sbin:/usr/local/lib/node_modules/.bin:${PATH}" \
+    HOMEBREW_NO_AUTO_UPDATE=1 \
+    HOMEBREW_NO_INSTALL_CLEANUP=1
+
+# 暴露端口
+EXPOSE 18789 18790
+
+# 设置工作目录为 home
+WORKDIR /home/node
+
+# 使用初始化脚本作为入口点
+ENTRYPOINT ["/bin/bash", "/usr/local/bin/init.sh"]
