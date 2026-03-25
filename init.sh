@@ -2098,11 +2098,48 @@ install_signal_traps() {
     trap cleanup SIGTERM SIGINT SIGQUIT
 }
 
+enable_hooks_from_config() {
+    local config_file="$OPENCLAW_HOME/openclaw.json"
+
+    if [ ! -f "$config_file" ]; then
+        echo "ℹ️ 配置文件不存在，跳过 hooks 配置"
+        return
+    fi
+
+    # 检查 hooks.internal.enabled 是否为 true
+    local hooks_internal_enabled
+    hooks_internal_enabled=$(jq -r '.hooks.internal.enabled // false' "$config_file" 2>/dev/null)
+
+    if [ "$hooks_internal_enabled" != "true" ]; then
+        echo "ℹ️ hooks.internal.enabled 未启用，跳过 hooks 配置"
+        return
+    fi
+
+    # 检查并启用 session-memory
+    local session_memory_enabled
+    session_memory_enabled=$(jq -r '.hooks.internal.entries.session-memory.enabled // false' "$config_file" 2>/dev/null)
+    if [ "$session_memory_enabled" = "true" ]; then
+        echo "✅ 检测到 session-memory 已在配置中启用，执行 hooks enable"
+        gosu node openclaw hooks enable session-memory
+    else
+        echo "ℹ️ session-memory 未在配置中启用，跳过"
+    fi
+
+    # 检查并启用 bootstrap-extra-files
+    local bootstrap_enabled
+    bootstrap_enabled=$(jq -r '.hooks.internal.entries.bootstrap-extra-files.enabled // false' "$config_file" 2>/dev/null)
+    if [ "$bootstrap_enabled" = "true" ]; then
+        echo "✅ 检测到 bootstrap-extra-files 已在配置中启用，执行 hooks enable"
+        gosu node openclaw hooks enable bootstrap-extra-files
+    else
+        echo "ℹ️ bootstrap-extra-files 未在配置中启用，跳过"
+    fi
+}
+
 start_gateway() {
     log_section "启动 OpenClaw Gateway"
 
-    gosu node openclaw hooks enable session-memory
-    gosu node openclaw hooks enable bootstrap-extra-files
+    enable_hooks_from_config
 
     gosu node env HOME=/home/node DBUS_SESSION_BUS_ADDRESS=/dev/null \
         BUN_INSTALL="/usr/local" AGENT_REACH_HOME="/home/node/.agent-reach" AGENT_REACH_VENV_HOME="/home/node/.agent-reach-venv" \
