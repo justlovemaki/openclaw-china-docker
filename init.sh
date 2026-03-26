@@ -2190,7 +2190,7 @@ enable_hooks_from_config() {
     fi
 
     local hooks_internal_enabled
-    hooks_internal_enabled=$(jq -r '.hooks.internal.enabled // false' "$config_file" 2>/dev/null)
+    hooks_internal_enabled=$(jq -r '.hooks.internal.enabled // false' "$config_file" 2>/dev/null || echo "false")
 
     if [ "$hooks_internal_enabled" != "true" ]; then
         log_note "hooks.internal.enabled 未启用，跳过 hooks 配置"
@@ -2198,7 +2198,7 @@ enable_hooks_from_config() {
     fi
 
     local session_memory_enabled
-    session_memory_enabled=$(jq -r '.hooks.internal.entries.session-memory.enabled // false' "$config_file" 2>/dev/null)
+    session_memory_enabled=$(jq -r '.hooks.internal.entries.session-memory.enabled // false' "$config_file" 2>/dev/null || echo "false")
     if [ "$session_memory_enabled" = "true" ]; then
         log_note "检测到 session-memory 已在配置中启用，执行 hooks enable"
         if ! gosu node openclaw hooks enable session-memory 2>/dev/null; then
@@ -2209,7 +2209,7 @@ enable_hooks_from_config() {
     fi
 
     local bootstrap_enabled
-    bootstrap_enabled=$(jq -r '.hooks.internal.entries.bootstrap-extra-files.enabled // false' "$config_file" 2>/dev/null)
+    bootstrap_enabled=$(jq -r '.hooks.internal.entries.bootstrap-extra-files.enabled // false' "$config_file" 2>/dev/null || echo "false")
     if [ "$bootstrap_enabled" = "true" ]; then
         log_note "检测到 bootstrap-extra-files 已在配置中启用，执行 hooks enable"
         if ! gosu node openclaw hooks enable bootstrap-extra-files 2>/dev/null; then
