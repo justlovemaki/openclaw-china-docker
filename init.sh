@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -E
+set -E -o pipefail
 
 OPENCLAW_HOME="/home/node/.openclaw"
 OPENCLAW_WORKSPACE="${WORKSPACE:-/home/node/.openclaw/workspace}"
@@ -42,7 +42,7 @@ log_note() {
 err_report() {
     local exit_code=$?
     local line_no=$1
-    local func_name="${FUNCNAME[2]:-main}"
+    local func_name="${FUNCNAME[1]:-main}"
     local cmd="${BASH_COMMAND:-<unknown>}"
     log_error "脚本在 ${func_name}() 第 ${line_no} 行执行失败 (退出码: ${exit_code})"
     log_error "失败命令: ${cmd}"
@@ -2246,15 +2246,13 @@ start_gateway() {
 }
 
 wait_for_gateway() {
-    wait "$GATEWAY_PID"
-    local exit_code=$?
-    if [ "$exit_code" -ne 0 ]; then
-        log_error "OpenClaw Gateway 异常退出 (退出码: $exit_code)"
+    if ! wait "$GATEWAY_PID"; then
+        log_error "OpenClaw Gateway 异常退出 (退出码: $?)"
         log_error "请查看上方日志排查原因，或参考 FAQ: https://github.com/justlikemaki/OpenClaw-Docker-CN-IM/blob/main/docs/faq.md"
     else
         log_info "OpenClaw Gateway 已正常退出"
     fi
-    exit "$exit_code"
+    exit $?
 }
 
 finalize_permissions() {
@@ -2268,9 +2266,6 @@ finalize_permissions() {
 main() {
     log_section "OpenClaw 初始化脚本"
     check_required_commands
-    print_env_diagnostic
-    validate_core_config
-    check_channels_status
     ensure_directories
     ensure_config_persistence
     fix_permissions_if_needed
