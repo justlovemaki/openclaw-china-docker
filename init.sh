@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -E
 
 OPENCLAW_HOME="/home/node/.openclaw"
 OPENCLAW_WORKSPACE="${WORKSPACE:-/home/node/.openclaw/workspace}"
@@ -8,12 +8,74 @@ NODE_UID="$(id -u node)"
 NODE_GID="$(id -g node)"
 GATEWAY_PID=""
 
+# ── 颜色 & 日志工具 ──────────────────────────────────────────────
+if [ -t 1 ] && [ -t 2 ]; then
+    _C_RED='\033[0;31m'; _C_YELLOW='\033[0;33m'; _C_GREEN='\033[0;32m'
+    _C_CYAN='\033[0;36m'; _C_BOLD='\033[1m'; _C_RESET='\033[0m'
+else
+    _C_RED=''; _C_YELLOW=''; _C_GREEN=''; _C_CYAN=''; _C_BOLD=''; _C_RESET=''
+fi
+
 log_section() {
-    echo "=== $1 ==="
+    echo -e "${_C_BOLD}${_C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${_C_RESET}"
+    echo -e "${_C_BOLD}${_C_CYAN}  $1${_C_RESET}"
+    echo -e "${_C_BOLD}${_C_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${_C_RESET}"
+}
+
+log_info() {
+    echo -e "${_C_GREEN}✅ $*${_C_RESET}"
+}
+
+log_warn() {
+    echo -e "${_C_YELLOW}⚠️  $*${_C_RESET}" >&2
+}
+
+log_error() {
+    echo -e "${_C_RED}❌ $*${_C_RESET}" >&2
+}
+
+log_note() {
+    echo -e "ℹ️  $*"
+}
+
+# ── 错误报告 trap ────────────────────────────────────────────────
+err_report() {
+    local exit_code=$?
+    local line_no=$1
+    local func_name="${FUNCNAME[2]:-main}"
+    local cmd="${BASH_COMMAND:-<unknown>}"
+    log_error "脚本在 ${func_name}() 第 ${line_no} 行执行失败 (退出码: ${exit_code})"
+    log_error "失败命令: ${cmd}"
+    log_error "请检查上方日志获取详细信息。如需帮助请提交 Issue:"
+    log_error "https://github.com/justlikemaki/OpenClaw-Docker-CN-IM/issues"
+    exit "$exit_code"
+}
+trap 'err_report ${LINENO}' ERR
+
+# ── 依赖检查 ────────────────────────────────────────────────────
+check_required_commands() {
+    local missing=()
+    for cmd in gosu jq python3 openclaw; do
+        if ! command -v "$cmd" &>/dev/null; then
+            missing+=("$cmd")
+        fi
+    done
+    if [ ${#missing[@]} -gt 0 ]; then
+        log_error "缺少必要命令: ${missing[*]}"
+        log_error "请确保使用正确的 Docker 镜像。如需帮助请提交 Issue:"
+        log_error "https://github.com/justlikemaki/OpenClaw-Docker-CN-IM/issues"
+        exit 127
+    fi
 }
 
 ensure_directories() {
-    mkdir -p "$OPENCLAW_HOME" "$OPENCLAW_WORKSPACE"
+    log_note "创建必要目录: $OPENCLAW_HOME, $OPENCLAW_WORKSPACE"
+    if ! mkdir -p "$OPENCLAW_HOME" "$OPENCLAW_WORKSPACE"; then
+        log_error "无法创建目录，请检查挂载点权限和磁盘空间"
+        log_error "  $OPENCLAW_HOME"
+        log_error "  $OPENCLAW_WORKSPACE"
+        return 1
+    fi
 }
 
 ensure_config_persistence() {
@@ -60,20 +122,23 @@ sync_seed_extensions() {
     normalized_toggle="$(echo "$sync_on_start" | tr '[:upper:]' '[:lower:]' | xargs)"
 
     if [ "$normalized_toggle" = "false" ] || [ "$normalized_toggle" = "0" ] || [ "$normalized_toggle" = "no" ]; then
-        echo "ℹ️ 已关闭启动时插件同步"
+        log_note "已关闭启动时插件同步"
         return
     fi
 
     if [ ! -d "$seed_dir" ]; then
-        echo "ℹ️ 未找到插件 seed 目录，跳过同步: $seed_dir"
+        log_note "未找到插件 seed 目录，跳过同步: $seed_dir"
         return
     fi
 
-    mkdir -p "$target_dir"
+    if ! mkdir -p "$target_dir"; then
+        log_error "无法创建插件目标目录: $target_dir"
+        return 1
+    fi
 
     case "$normalized_mode" in
         missing)
-            echo "=== 同步内置插件（仅补充缺失项） ==="
+            log_note "同步内置插件（仅补充缺失项）"
             find "$seed_dir" -mindepth 1 -maxdepth 1 | while IFS= read -r seed_item; do
                 local item_name target_item
                 item_name="$(basename "$seed_item")"
@@ -81,12 +146,15 @@ sync_seed_extensions() {
                 if [ -e "$target_item" ]; then
                     continue
                 fi
-                cp -a "$seed_item" "$target_item"
-                echo "➕ 已补充插件/文件: $item_name"
+                if ! cp -a "$seed_item" "$target_item"; then
+                    log_warn "插件复制失败: $item_name -> $target_item"
+                else
+                    log_info "已补充插件/文件: $item_name"
+                fi
             done
             ;;
         overwrite)
-            echo "=== 同步内置插件（强制覆盖） ==="
+            log_note "同步内置插件（强制覆盖）"
             # 仅删除 seed 中存在的同名项，以保留用户自行添加的其他插件
             find "$seed_dir" -mindepth 1 -maxdepth 1 ! -name '.seed-version' | while IFS= read -r seed_item; do
                 rm -rf "$target_dir/$(basename "$seed_item")"
@@ -105,20 +173,20 @@ sync_seed_extensions() {
             fi
 
             if [ -n "$seed_version" ] && [ "$seed_version" = "$current_version" ]; then
-                echo "ℹ️ 内置插件已是最新 seed 版本: $seed_version"
+                log_note "内置插件已是最新 seed 版本: $seed_version"
                 return
             fi
 
-            echo "=== 同步内置插件（按 seed 版本） ==="
+            log_note "同步内置插件（按 seed 版本）"
             if [ -n "$current_version" ]; then
-                echo "当前插件 seed 版本: $current_version"
+                log_note "当前插件 seed 版本: $current_version"
             else
-                echo "当前插件 seed 版本: 未初始化"
+                log_note "当前插件 seed 版本: 未初始化"
             fi
             if [ -n "$seed_version" ]; then
-                echo "镜像内置 seed 版本: $seed_version"
+                log_note "镜像内置 seed 版本: $seed_version"
             else
-                echo "镜像内置 seed 版本: 未标记，执行覆盖同步"
+                log_warn "镜像内置 seed 版本: 未标记，执行覆盖同步"
             fi
             # 仅删除 seed 中存在的同名项，以保留用户自行添加的其他插件
             find "$seed_dir" -mindepth 1 -maxdepth 1 ! -name '.seed-version' | while IFS= read -r seed_item; do
@@ -127,18 +195,20 @@ sync_seed_extensions() {
             cp -a "$seed_dir"/. "$target_dir"/
             ;;
         *)
-            echo "⚠️ 未识别的 SYNC_EXTENSIONS_MODE=$sync_mode，支持 missing / overwrite / seed-version，已跳过插件同步"
+            log_warn "未识别的 SYNC_EXTENSIONS_MODE=$sync_mode，支持 missing / overwrite / seed-version，已跳过插件同步"
             return
             ;;
     esac
 
     if is_root; then
-        chown -R node:node "$target_dir" || true
+        if ! chown -R node:node "$target_dir" 2>/dev/null; then
+            log_warn "插件目录 chown 失败（非致命）: $target_dir"
+        fi
     fi
 
     rm -rf "$seed_dir"
-    echo "🧹 已清空插件 seed 目录: $seed_dir"
-    echo "✅ 内置插件同步完成，模式: ${normalized_mode:-seed-version}"
+    log_note "已清空插件 seed 目录: $seed_dir"
+    log_info "内置插件同步完成，模式: ${normalized_mode:-seed-version}"
 }
 
 is_root() {
@@ -153,22 +223,26 @@ fix_permissions_if_needed() {
     local current_owner
     current_owner="$(stat -c '%u:%g' "$OPENCLAW_HOME" 2>/dev/null || echo unknown:unknown)"
 
-    echo "挂载目录: $OPENCLAW_HOME"
-    echo "当前所有者(UID:GID): $current_owner"
-    echo "目标所有者(UID:GID): ${NODE_UID}:${NODE_GID}"
+    log_note "挂载目录: $OPENCLAW_HOME"
+    log_note "当前所有者(UID:GID): $current_owner"
+    log_note "目标所有者(UID:GID): ${NODE_UID}:${NODE_GID}"
 
     if [ "$current_owner" != "${NODE_UID}:${NODE_GID}" ]; then
-        echo "检测到宿主机挂载目录所有者与容器运行用户不一致，尝试自动修复..."
-        chown -R node:node "$OPENCLAW_HOME" || true
+        log_note "检测到宿主机挂载目录所有者与容器运行用户不一致，尝试自动修复..."
+        if ! chown -R node:node "$OPENCLAW_HOME" 2>/dev/null; then
+            log_warn "自动修复权限失败（非致命），继续尝试写入检查..."
+        else
+            log_info "权限自动修复成功"
+        fi
     fi
 
     if ! gosu node test -w "$OPENCLAW_HOME"; then
-        echo "❌ 权限检查失败：node 用户无法写入 $OPENCLAW_HOME"
-        echo "请在宿主机执行（Linux）："
-        echo "  sudo chown -R ${NODE_UID}:${NODE_GID} <your-openclaw-data-dir>"
-        echo "或在启动时显式指定用户："
-        echo "  docker run --user \$(id -u):\$(id -g) ..."
-        echo "若宿主机启用了 SELinux，请在挂载卷后添加 :z 或 :Z"
+        log_error "权限检查失败：node 用户无法写入 $OPENCLAW_HOME"
+        log_error "请尝试以下解决方案："
+        log_error "  1. 在宿主机执行: sudo chown -R ${NODE_UID}:${NODE_GID} <your-openclaw-data-dir>"
+        log_error "  2. 或在 docker run 中显式指定用户: docker run --user \$(id -u):\$(id -g) ..."
+        log_error "  3. 若宿主机启用了 SELinux，请在挂载卷后添加 :z 或 :Z"
+        log_error "详情请参考: https://github.com/justlikemaki/OpenClaw-Docker-CN-IM/blob/main/docs/faq.md"
         exit 1
     fi
 }
@@ -180,8 +254,8 @@ ensure_base_config() {
         return
     fi
 
-    echo "配置文件不存在，创建基础骨架..."
-    cat > "$config_file" <<'EOF'
+    log_note "配置文件不存在，创建基础骨架..."
+    if ! cat > "$config_file" <<'EOF'
 {
   "meta": { "lastTouchedVersion": "2026.2.14" },
   "update": { "checkOnStart": false },
@@ -243,6 +317,10 @@ ensure_base_config() {
   }
 }
 EOF
+    then
+        log_error "无法创建配置文件: $config_file"
+        return 1
+    fi
 }
 
 sync_config_with_env() {
@@ -250,7 +328,7 @@ sync_config_with_env() {
 
     ensure_base_config
 
-    echo "正在根据当前环境变量同步配置状态..."
+    log_note "正在根据当前环境变量同步配置状态..."
     CONFIG_FILE="$config_file" python3 - <<'PYCODE'
 import json
 import os
@@ -1907,12 +1985,12 @@ print_model_summary() {
     sync_check="$(normalize_sync_check)"
 
     if [ "$sync_check" = "global-disabled" ]; then
-        echo "整体配置: 手动模式 (跳过环境变量同步)"
+        log_note "整体配置: 手动模式 (跳过环境变量同步)"
         return
     fi
 
     if [ "$sync_check" = "model-disabled" ]; then
-        echo "模型配置: 手动模式 (跳过模型环境变量同步)"
+        log_note "模型配置: 手动模式 (跳过模型环境变量同步)"
         return
     fi
 
@@ -1924,8 +2002,8 @@ print_model_summary() {
     final_imid="${IMAGE_MODEL_ID:-${MODEL_ID:-gpt-4o}}"
     final_imid="$(normalize_model_ref_shell "$final_imid" "${provider_names[@]}")"
 
-    echo "当前主模型: $final_mid"
-    echo "当前图片模型: $final_imid"
+    log_note "当前主模型: $final_mid"
+    log_note "当前图片模型: $final_imid"
 
     extra_providers=()
     for i in 2 3 4 5 6; do
@@ -1941,25 +2019,25 @@ print_model_summary() {
     done
 
     if [ ${#extra_providers[@]} -gt 0 ]; then
-        echo "额外提供商: ${extra_providers[*]}"
+        log_note "额外提供商: ${extra_providers[*]}"
     fi
 }
 
 print_runtime_summary() {
     log_section "初始化完成"
     print_model_summary
-    echo "API 协议: ${API_PROTOCOL:-openai-completions}"
-    echo "Base URL: ${BASE_URL}"
-    echo "上下文窗口: ${CONTEXT_WINDOW:-200000}"
-    echo "最大 Tokens: ${MAX_TOKENS:-8192}"
-    echo "Gateway 端口: $OPENCLAW_GATEWAY_PORT"
-    echo "Gateway 绑定: $OPENCLAW_GATEWAY_BIND"
-    echo "Gateway 模式: ${OPENCLAW_GATEWAY_MODE:-local}"
-    echo "Gateway 允许域: ${OPENCLAW_GATEWAY_ALLOWED_ORIGINS:-未设置}"
-    echo "Gateway 允许不安全认证: ${OPENCLAW_GATEWAY_ALLOW_INSECURE_AUTH:-true}"
-    echo "Gateway 禁用设备认证: ${OPENCLAW_GATEWAY_DANGEROUSLY_DISABLE_DEVICE_AUTH:-false}"
-    echo "插件启用: ${OPENCLAW_PLUGINS_ENABLED:-true}"
-    echo "允许插件列表已由系统自动同步"
+    log_note "API 协议: ${API_PROTOCOL:-openai-completions}"
+    log_note "Base URL: ${BASE_URL}"
+    log_note "上下文窗口: ${CONTEXT_WINDOW:-200000}"
+    log_note "最大 Tokens: ${MAX_TOKENS:-8192}"
+    log_note "Gateway 端口: $OPENCLAW_GATEWAY_PORT"
+    log_note "Gateway 绑定: $OPENCLAW_GATEWAY_BIND"
+    log_note "Gateway 模式: ${OPENCLAW_GATEWAY_MODE:-local}"
+    log_note "Gateway 允许域: ${OPENCLAW_GATEWAY_ALLOWED_ORIGINS:-未设置}"
+    log_note "Gateway 允许不安全认证: ${OPENCLAW_GATEWAY_ALLOW_INSECURE_AUTH:-true}"
+    log_note "Gateway 禁用设备认证: ${OPENCLAW_GATEWAY_DANGEROUSLY_DISABLE_DEVICE_AUTH:-false}"
+    log_note "插件启用: ${OPENCLAW_PLUGINS_ENABLED:-true}"
+    log_note "允许插件列表已由系统自动同步"
 }
 
 setup_runtime_env() {
@@ -2014,28 +2092,36 @@ install_agent_reach() {
         echo "$check_output"
 
         if echo "$check_output" | grep -q '已是最新版本'; then
-            echo "Agent Reach 已是最新版本，跳过安装步骤"
+            log_info "Agent Reach 已是最新版本，跳过安装步骤"
             return
         fi
 
-        echo "Agent Reach 检测到可更新版本，开始自动更新..."
-        gosu node bash -c "
-            export PATH=\$PATH:/home/node/.local/bin
-            $pip_index_env
+        log_note "Agent Reach 检测到可更新版本，开始自动更新..."
+        if ! gosu node bash -c '
+            export PATH=$PATH:/home/node/.local/bin
             source ~/.agent-reach-venv/bin/activate
-            pip install --upgrade pip $pip_mirror
-            pip install --upgrade $github_url $pip_mirror
-        "
+            pip install --upgrade pip
+            pip install --upgrade https://github.com/Panniantong/agent-reach/archive/main.zip
+        '; then
+            log_warn "Agent Reach 更新失败，继续使用当前版本"
+        else
+            log_info "Agent Reach 更新完成"
+        fi
     else
-        gosu node bash -c "
-            export PATH=\$PATH:/home/node/.local/bin
-            $pip_index_env
+        log_note "首次安装 Agent Reach..."
+        if ! gosu node bash -c '
+            export PATH=$PATH:/home/node/.local/bin
             python3 -m venv ~/.agent-reach-venv
             source ~/.agent-reach-venv/bin/activate
             pip install --upgrade pip $pip_mirror
             pip install $github_url $pip_mirror
             agent-reach install --env=auto 
-        "
+<<<<<<< HEAD
+        '; then
+            log_warn "Agent Reach 安装失败，跳过 Agent Reach 配置"
+            return
+        fi
+        log_info "Agent Reach 安装完成"
     fi
 
     gosu node bash -c "
@@ -2044,28 +2130,25 @@ install_agent_reach() {
         source ~/.agent-reach-venv/bin/activate
 
         # 配置代理（如果提供）
-        if [ -n \"\$AGENT_REACH_PROXY\" ]; then
-            agent-reach configure proxy \"\$AGENT_REACH_PROXY\"
+        if [ -n "$AGENT_REACH_PROXY" ]; then
+            agent-reach configure proxy "$AGENT_REACH_PROXY"
         fi
 
         # 配置 Twitter Cookies
-        if [ -n \"\$AGENT_REACH_TWITTER_COOKIES\" ]; then
-            agent-reach configure twitter-cookies \"\$AGENT_REACH_TWITTER_COOKIES\"
+        if [ -n "$AGENT_REACH_TWITTER_COOKIES" ]; then
+            agent-reach configure twitter-cookies "$AGENT_REACH_TWITTER_COOKIES"
         fi
 
         # 配置 Groq Key
-        if [ -n \"\$AGENT_REACH_GROQ_KEY\" ]; then
-            agent-reach configure groq-key \"\$AGENT_REACH_GROQ_KEY\"
+        if [ -n "$AGENT_REACH_GROQ_KEY" ]; then
+            agent-reach configure groq-key "$AGENT_REACH_GROQ_KEY"
         fi
-        
+
         # 配置小红书 Cookies
-        if [ -n \"\$AGENT_REACH_XHS_COOKIES\" ]; then
-            agent-reach configure xhs-cookies \"\$AGENT_REACH_XHS_COOKIES\"
+        if [ -n "$AGENT_REACH_XHS_COOKIES" ]; then
+            agent-reach configure xhs-cookies "$AGENT_REACH_XHS_COOKIES"
         fi
-    "
-    
-    # 建立软链接到 /usr/local/bin 以便全局访问（如果需要）
-    # 但我们已经在 setup_runtime_env 中处理了 PATH
+    '
 
     # 检查工作空间父目录下的 skills 目录中是否存在 agent-reach，若存在则同步到工作空间（仅删除目标 SKILL.md 并覆盖）
     local workspace_parent
@@ -2085,12 +2168,12 @@ install_agent_reach() {
 }
 
 cleanup() {
-    echo "=== 接收到停止信号,正在关闭服务 ==="
+    log_section "接收到停止信号，正在关闭服务"
     if [ -n "$GATEWAY_PID" ]; then
         kill -TERM "$GATEWAY_PID" 2>/dev/null || true
         wait "$GATEWAY_PID" 2>/dev/null || true
     fi
-    echo "=== 服务已停止 ==="
+    log_info "服务已停止"
     exit 0
 }
 
@@ -2102,37 +2185,38 @@ enable_hooks_from_config() {
     local config_file="$OPENCLAW_HOME/openclaw.json"
 
     if [ ! -f "$config_file" ]; then
-        echo "ℹ️ 配置文件不存在，跳过 hooks 配置"
+        log_note "配置文件不存在，跳过 hooks 配置"
         return
     fi
 
-    # 检查 hooks.internal.enabled 是否为 true
     local hooks_internal_enabled
     hooks_internal_enabled=$(jq -r '.hooks.internal.enabled // false' "$config_file" 2>/dev/null)
 
     if [ "$hooks_internal_enabled" != "true" ]; then
-        echo "ℹ️ hooks.internal.enabled 未启用，跳过 hooks 配置"
+        log_note "hooks.internal.enabled 未启用，跳过 hooks 配置"
         return
     fi
 
-    # 检查并启用 session-memory
     local session_memory_enabled
     session_memory_enabled=$(jq -r '.hooks.internal.entries.session-memory.enabled // false' "$config_file" 2>/dev/null)
     if [ "$session_memory_enabled" = "true" ]; then
-        echo "✅ 检测到 session-memory 已在配置中启用，执行 hooks enable"
-        gosu node openclaw hooks enable session-memory
+        log_note "检测到 session-memory 已在配置中启用，执行 hooks enable"
+        if ! gosu node openclaw hooks enable session-memory 2>/dev/null; then
+            log_warn "session-memory hook 启用失败，可能是版本不支持或 hook 不存在，已跳过"
+        fi
     else
-        echo "ℹ️ session-memory 未在配置中启用，跳过"
+        log_note "session-memory 未在配置中启用，跳过"
     fi
 
-    # 检查并启用 bootstrap-extra-files
     local bootstrap_enabled
     bootstrap_enabled=$(jq -r '.hooks.internal.entries.bootstrap-extra-files.enabled // false' "$config_file" 2>/dev/null)
     if [ "$bootstrap_enabled" = "true" ]; then
-        echo "✅ 检测到 bootstrap-extra-files 已在配置中启用，执行 hooks enable"
-        gosu node openclaw hooks enable bootstrap-extra-files
+        log_note "检测到 bootstrap-extra-files 已在配置中启用，执行 hooks enable"
+        if ! gosu node openclaw hooks enable bootstrap-extra-files 2>/dev/null; then
+            log_warn "bootstrap-extra-files hook 启用失败，可能是版本不支持或 hook 不存在，已跳过"
+        fi
     else
-        echo "ℹ️ bootstrap-extra-files 未在配置中启用，跳过"
+        log_note "bootstrap-extra-files 未在配置中启用，跳过"
     fi
 }
 
@@ -2140,6 +2224,13 @@ start_gateway() {
     log_section "启动 OpenClaw Gateway"
 
     enable_hooks_from_config
+
+    if [ -z "$OPENCLAW_GATEWAY_TOKEN" ]; then
+        log_error "OPENCLAW_GATEWAY_TOKEN 未设置，Gateway 无法启动"
+        log_error "请参考 .env.example 或文档设置 OPENCLAW_GATEWAY_TOKEN"
+        log_error "https://github.com/justlikemaki/OpenClaw-Docker-CN-IM/blob/main/docs/configuration.md"
+        exit 1
+    fi
 
     gosu node env HOME=/home/node DBUS_SESSION_BUS_ADDRESS=/dev/null \
         BUN_INSTALL="/usr/local" AGENT_REACH_HOME="/home/node/.agent-reach" AGENT_REACH_VENV_HOME="/home/node/.agent-reach-venv" \
@@ -2151,24 +2242,35 @@ start_gateway() {
         --verbose &
     GATEWAY_PID=$!
 
-    echo "=== OpenClaw Gateway 已启动 (PID: $GATEWAY_PID) ==="
+    log_info "OpenClaw Gateway 已启动 (PID: $GATEWAY_PID)"
 }
 
 wait_for_gateway() {
     wait "$GATEWAY_PID"
     local exit_code=$?
-    echo "=== OpenClaw Gateway 已退出 (退出码: $exit_code) ==="
+    if [ "$exit_code" -ne 0 ]; then
+        log_error "OpenClaw Gateway 异常退出 (退出码: $exit_code)"
+        log_error "请查看上方日志排查原因，或参考 FAQ: https://github.com/justlikemaki/OpenClaw-Docker-CN-IM/blob/main/docs/faq.md"
+    else
+        log_info "OpenClaw Gateway 已正常退出"
+    fi
     exit "$exit_code"
 }
 
 finalize_permissions() {
     if is_root; then
-        chown -R node:node "$OPENCLAW_HOME" || true
+        if ! chown -R node:node "$OPENCLAW_HOME" 2>/dev/null; then
+            log_warn "最终权限修复失败（非致命）: $OPENCLAW_HOME"
+        fi
     fi
 }
 
 main() {
     log_section "OpenClaw 初始化脚本"
+    check_required_commands
+    print_env_diagnostic
+    validate_core_config
+    check_channels_status
     ensure_directories
     ensure_config_persistence
     fix_permissions_if_needed
