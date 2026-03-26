@@ -2209,91 +2209,58 @@ enable_hooks_from_config() {
 
 cleanup_stale_plugin_entries() {
     local config_file="$OPENCLAW_HOME/openclaw.json"
-
-    if [ ! -f "$config_file" ]; then
-        return
-    fi
+    [ -f "$config_file" ] || return 0
 
     local plugins_to_remove=""
     local plugins_list
     plugins_list=$(jq -r '.plugins.entries // {} | keys[]' "$config_file" 2>/dev/null)
-
-    if [ -z "$plugins_list" ]; then
-        return
-    fi
+    [ -z "$plugins_list" ] && return 0
 
     for plugin_id in $plugins_list; do
         local install_path
         install_path=$(jq -r --arg pid "$plugin_id" '.plugins.entries[$pid].installPath // empty' "$config_file" 2>/dev/null)
 
-        local manifest_found=false
+        local has_manifest=false
         if [ -n "$install_path" ] && [ -f "$install_path/openclaw.plugin.json" ]; then
-            manifest_found=true
+            has_manifest=true
         fi
 
-        if [ "$manifest_found" = "false" ]; then
+        if [ "$has_manifest" = "false" ]; then
             log_note "插件 $plugin_id manifest 不存在，从配置中移除"
             plugins_to_remove="$plugins_to_remove $plugin_id"
         fi
     done
 
-    if [ -n "$plugins_to_remove" ]; then
-        local jq_args=""
-        for plugin_id in $plugins_to_remove; do
-            jq_args="$jq_args | del(.plugins.entries[\"$plugin_id\"])"
-        done
-        local updated
-        updated=$(jq "$jq_args" "$config_file" 2>/dev/null)
-        if [ -n "$updated" ]; then
-            echo "$updated" > "$config_file"
+    [ -z "$plugins_to_remove" ] && return 0
+
+    local jq_del_args=()
+    local first=true
+    for plugin_id in $plugins_to_remove; do
+        if [ "$first" = "true" ]; then
+            jq_del_args+=("del(.plugins.entries[\"$plugin_id\"])")
+            first=false
+        else
+            jq_del_args+=("| del(.plugins.entries[\"$plugin_id\"])")
         fi
+    done
 
-        # Also clean up plugins.allow list
-        local allow_cleaned=false
-        local allow_list
-        allow_list=$(jq -r '.plugins.allow // [] | if type == "array" then .[] else empty end' "$config_file" 2>/dev/null)
-        local new_allow_items=""
-        for item in $allow_list; do
-            local should_remove=false
-            for plugin_id in $plugins_to_remove; do
-                if [ "$item" = "$plugin_id" ]; then
-                    should_remove=true
-                    break
-                fi
-            done
-            if [ "$should_remove" = "false" ]; then
-                new_allow_items="$new_allow_items $item"
-            fi
-        done
-
-        # Rebuild allow array if we removed something
-        local has_removed_allow=false
-        for plugin_id in $plugins_to_remove; do
-            if echo "$allow_list" | grep -qw "$plugin_id"; then
-                has_removed_allow=true
-                break
-            fi
-        done
-
-        if [ "$has_removed_allow" = "true" ]; then
-            local jq_allow_args="["
-            local first=true
-            for item in $new_allow_items; do
-                [ -n "$item" ] || continue
-                if [ "$first" = "true" ]; then
-                    jq_allow_args="$jq_allow_args\"$item\""
-                    first=false
-                else
-                    jq_allow_args="$jq_allow_args, \"$item\""
-                fi
-            done
-            jq_allow_args="$jq_allow_args]"
-            local updated_allow
-            updated_allow=$(jq --argjson arr "$jq_allow_args" '.plugins.allow = $arr' "$config_file" 2>/dev/null)
-            if [ -n "$updated_allow" ]; then
-                echo "$updated_allow" > "$config_file"
-            fi
+    local remove_json="["
+    local rfirst=true
+    for plugin_id in $plugins_to_remove; do
+        if [ "$rfirst" = "true" ]; then
+            remove_json="$remove_json\"$plugin_id\""
+            rfirst=false
+        else
+            remove_json="$remove_json, \"$plugin_id\""
         fi
+    done
+    remove_json="$remove_json]"
+
+    local updated
+    updated=$(jq --argjson REMOVE_LIST "$remove_json" "${jq_del_args[*]} | .plugins.allow = ((.plugins.allow // []) | map(select(. as \$a | \$REMOVE_LIST | index(\$a) | not)))" "$config_file" 2>/dev/null)
+
+    if [ -n "$updated" ]; then
+        echo "$updated" > "$config_file"
     fi
 }
 
