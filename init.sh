@@ -2184,39 +2184,26 @@ install_signal_traps() {
 enable_hooks_from_config() {
     local config_file="$OPENCLAW_HOME/openclaw.json"
 
-    if [ ! -f "$config_file" ]; then
-        log_note "配置文件不存在，跳过 hooks 配置"
-        return
-    fi
-
-    local hooks_internal_enabled
-    hooks_internal_enabled=$(jq -r '.hooks.internal.enabled // false' "$config_file" 2>/dev/null || echo "false")
-
-    if [ "$hooks_internal_enabled" != "true" ]; then
-        log_note "hooks.internal.enabled 未启用，跳过 hooks 配置"
-        return
-    fi
-
     local session_memory_enabled
     session_memory_enabled=$(jq -r '.hooks.internal.entries.session-memory.enabled // false' "$config_file" 2>/dev/null || echo "false")
     if [ "$session_memory_enabled" = "true" ]; then
-        log_note "检测到 session-memory 已在配置中启用，执行 hooks enable"
+        log_note "session-memory 已在配置中启用，跳过"
+    else
+        log_note "session-memory 未在配置中启用，执行 hooks enable"
         if ! gosu node openclaw hooks enable session-memory 2>/dev/null; then
             log_warn "session-memory hook 启用失败，可能是版本不支持或 hook 不存在，已跳过"
         fi
-    else
-        log_note "session-memory 未在配置中启用，跳过"
     fi
 
     local bootstrap_enabled
     bootstrap_enabled=$(jq -r '.hooks.internal.entries.bootstrap-extra-files.enabled // false' "$config_file" 2>/dev/null || echo "false")
     if [ "$bootstrap_enabled" = "true" ]; then
-        log_note "检测到 bootstrap-extra-files 已在配置中启用，执行 hooks enable"
+        log_note "bootstrap-extra-files 已在配置中启用，跳过"
+    else
+        log_note "bootstrap-extra-files 未在配置中启用，执行 hooks enable"
         if ! gosu node openclaw hooks enable bootstrap-extra-files 2>/dev/null; then
             log_warn "bootstrap-extra-files hook 启用失败，可能是版本不支持或 hook 不存在，已跳过"
         fi
-    else
-        log_note "bootstrap-extra-files 未在配置中启用，跳过"
     fi
 }
 
