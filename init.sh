@@ -244,8 +244,14 @@ EOF
 
 sync_config_with_env() {
     local config_file="$OPENCLAW_HOME/openclaw.json"
+    local backup_file="$config_file.bak"
 
     ensure_base_config
+
+    if [ -f "$config_file" ]; then
+        cp -f "$config_file" "$backup_file"
+        echo "已备份当前配置到 $backup_file"
+    fi
 
     echo "正在根据当前环境变量同步配置状态..."
     CONFIG_FILE="$config_file" python3 - <<'PYCODE'
@@ -1946,7 +1952,7 @@ print_runtime_summary() {
     log_section "初始化完成"
     print_model_summary
     echo "API 协议: ${API_PROTOCOL:-openai-completions}"
-    echo "Base URL: ${BASE_URL}"
+    echo "Base URL: $(echo "${BASE_URL}" | sed -E 's|^[^:]+://([^/:]+).*|\1|')"
     echo "上下文窗口: ${CONTEXT_WINDOW:-200000}"
     echo "最大 Tokens: ${MAX_TOKENS:-8192}"
     echo "Gateway 端口: $OPENCLAW_GATEWAY_PORT"

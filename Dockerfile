@@ -200,6 +200,10 @@ ENV HOME=/home/node \
 # 7.3 暴露端口
 EXPOSE 18789 18790
 
+# 7.4 健康检查 - 检测 Gateway 端口是否可达
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+    CMD bash -c 'cat < /dev/tcp/localhost/${OPENCLAW_GATEWAY_PORT:-18789}' > /dev/null 2>&1 || exit 1
+
 WORKDIR /home/node
 
 # 入口点 - 使用 tini 作为 PID 1 以正确传播信号

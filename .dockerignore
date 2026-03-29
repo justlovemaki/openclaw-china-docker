@@ -1,0 +1,39 @@
+# Version control
+.git
+.gitignore
+
+# Documentation (not needed in image)
+docs/
+LICENSE
+README.md
+*.md
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# CI/CD
+.github/
+
+# Large assets not needed in build context
+sponsor.png
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Sisyphus (build tool cache)
+.sisyphus/
+
+# Docker files themselves
+docker-compose.yml
+Dockerfile
+.dockerignore
