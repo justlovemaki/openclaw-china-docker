@@ -45,7 +45,7 @@ RUN npm config set registry https://registry.npmmirror.com
 
 # 2.2 全局 npm 工具（OpenClaw 核心依赖）
 RUN npm install -g \
-        openclaw@latest \
+        openclaw@2026.3.28 \
         opencode-ai@latest \
         clawhub \
         playwright \
