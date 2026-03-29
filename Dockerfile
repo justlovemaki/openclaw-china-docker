@@ -97,8 +97,9 @@ RUN cd /home/node/.openclaw/extensions && \
     npm install --production && \
     timeout 300 openclaw plugins install -l . || true && \
     cd /home/node/.openclaw/extensions && \
-    timeout openclaw plugins install clawhub:openclaw-memory-plugin && \
-    timeout openclaw plugins install clawhub:humanizeai  && \
+    timeout 300 openclaw plugins install clawhub:openclaw-memory-plugin && \
+    timeout 300 openclaw plugins install clawhub:humanizeai  && \
+    timeout 300 openclaw plugins install clawhub:@openclaw/ralph-loop && \
     timeout 300 openclaw plugins install @soimy/dingtalk || true && \
     timeout 300 openclaw plugins install @tencent-connect/openclaw-qqbot@latest || true && \
     timeout 300 openclaw plugins install @sunnoy/wecom || true && \
@@ -201,5 +202,5 @@ EXPOSE 18789 18790
 
 WORKDIR /home/node
 
-# 入口点
-ENTRYPOINT ["/bin/bash", "/usr/local/bin/init.sh"]
+# 入口点 - 使用 tini 作为 PID 1 以正确传播信号
+ENTRYPOINT ["tini", "--", "/bin/bash", "/usr/local/bin/init.sh"]
