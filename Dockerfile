@@ -108,11 +108,6 @@ RUN cd /home/node/.openclaw/extensions && \
     mv /home/node/.openclaw/extensions /home/node/.openclaw-seed/ && \
     printf '%s\n' '2026.3.28' > /home/node/.openclaw-seed/extensions/.seed-version && \
     rm -rf /tmp/* /home/node/.npm /home/node/.cache
-
-# =============================================================================
-# Phase 5: 工具层 - 全局命令行工具
-# =============================================================================
-
 USER root
 
 # 5.1 全局 Node 工具（mcporter, clawhub, agent-browser）

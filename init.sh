@@ -88,9 +88,16 @@ sync_seed_extensions() {
     local target_dir="$OPENCLAW_HOME/extensions"
     local seed_version_file="$seed_dir/.seed-version"
     local target_version_file="$target_dir/.seed-version"
+    local global_sync="${SYNC_OPENCLAW_CONFIG:-true}"
     local sync_mode="${SYNC_EXTENSIONS_MODE:-seed-version}"
     local sync_on_start="${SYNC_EXTENSIONS_ON_START:-true}"
     local normalized_mode normalized_toggle
+
+    global_sync="$(echo "$global_sync" | tr '[:upper:]' '[:lower:]' | xargs)"
+    if [ "$global_sync" = "false" ] || [ "$global_sync" = "0" ] || [ "$global_sync" = "no" ]; then
+        echo "ℹ️ 已关闭整体配置同步，跳过插件目录同步"
+        return
+    fi
 
     normalized_mode="$(echo "$sync_mode" | tr '[:upper:]' '[:lower:]' | xargs)"
     normalized_toggle="$(echo "$sync_on_start" | tr '[:upper:]' '[:lower:]' | xargs)"
@@ -239,7 +246,25 @@ ensure_base_config() {
       "subagents": { "maxConcurrent": 8 }
     }
   },
-  "messages": { "ackReactionScope": "group-mentions", "tts": { "edge": { "voice": "zh-CN-XiaoxiaoNeural" } } },
+  "messages": {
+    "ackReactionScope": "group-mentions",
+    "tts": {
+      "auto": "off",
+      "mode": "final",
+      "provider": "edge",
+      "providers": {
+        "edge": {
+          "voice": "zh-CN-XiaoxiaoNeural",
+          "lang": "zh-CN",
+          "outputFormat": "ogg-24khz-16bit-mono-opus",
+          "pitch": "+0Hz",
+          "rate": "+0%",
+          "volume": "+0%",
+          "timeoutMs": 30000
+        }
+      }
+    }
+  },
   "commands": { "native": "auto", "nativeSkills": "auto" },
   "tools": {
     "profile": "full",
@@ -305,14 +330,15 @@ from datetime import datetime, timezone
 
 WECOM_ACCOUNT_ID_RE = re.compile(r'^[a-z0-9_-]+$')
 FEISHU_ACCOUNT_FIELDS = {
-    'appId', 'appSecret', 'botName', 'dmPolicy', 'allowFrom', 'groupPolicy',
-    'groupAllowFrom', 'domain', 'replyMode', 'threadSession', 'groups',
-    'footer', 'streaming', 'requireMention'
+    'appId', 'appSecret', 'name'
+}
+FEISHU_GROUP_FIELDS = {
+    'requireMention'
 }
 FEISHU_RESERVED_FIELDS = {
-    'enabled', 'appId', 'appSecret', 'botName', 'dmPolicy', 'allowFrom', 'groupPolicy',
-    'groupAllowFrom', 'streaming', 'footer', 'requireMention', 'threadSession',
-    'replyMode', 'defaultAccount', 'accounts', 'groups'
+    'enabled', 'appId', 'appSecret', 'dmPolicy', 'allowFrom', 'groupPolicy',
+    'groupAllowFrom', 'streaming', 'requireMention', 'defaultAccount',
+    'accounts', 'groups'
 }
 DINGTALK_ACCOUNT_FIELDS = {
     'clientId', 'clientSecret', 'robotCode', 'corpId', 'agentId', 'dmPolicy',
@@ -740,8 +766,8 @@ def normalize_feishu_config(channels):
             default_account = {}
         for key, value in legacy_account.items():
             default_account.setdefault(key, value)
-        if 'botName' not in default_account:
-            default_account['botName'] = feishu.get('botName', 'OpenClaw Bot')
+        if 'name' not in default_account:
+            default_account['name'] = feishu.get('name', 'OpenClaw Bot')
         accounts['default'] = default_account
         migrated = True
 
@@ -758,7 +784,9 @@ def normalize_feishu_config(channels):
     normalized_accounts = {}
     for account_id, cfg in accounts.items():
         if is_valid_account_id(account_id) and is_feishu_account_config(cfg):
-            normalized_accounts[account_id] = cfg
+            # 仅保留 FEISHU_ACCOUNT_FIELDS 中定义的键
+            pruned_cfg = {k: v for k, v in cfg.items() if k in FEISHU_ACCOUNT_FIELDS}
+            normalized_accounts[account_id] = pruned_cfg
 
     if normalized_accounts:
         feishu['accounts'] = normalized_accounts
@@ -772,8 +800,22 @@ def normalize_feishu_config(channels):
                 feishu['appId'] = default_account['appId']
             if default_account.get('appSecret'):
                 feishu['appSecret'] = default_account['appSecret']
-            if default_account.get('botName'):
-                feishu['botName'] = default_account['botName']
+            if default_account.get('name'):
+                feishu['name'] = default_account['name']
+
+        # 清理冗余字段，确保只保留 FEISHU_RESERVED_FIELDS 中定义的键
+        for key in list(feishu.keys()):
+            if key not in FEISHU_RESERVED_FIELDS:
+                del feishu[key]
+
+        # 清理 groups 内部字段，仅保留 FEISHU_GROUP_FIELDS 中定义的键
+        groups = feishu.get('groups')
+        if isinstance(groups, dict):
+            for gid, gcfg in groups.items():
+                if isinstance(gcfg, dict):
+                    pruned_gcfg = {k: v for k, v in gcfg.items() if k in FEISHU_GROUP_FIELDS}
+                    groups[gid] = pruned_gcfg
+        
         migrated = migrated or feishu.get('accounts') != accounts
 
     if migrated:
@@ -788,7 +830,7 @@ def migrate_feishu_config(channels_root):
             'default': {
                 'appId': feishu.get('appId', ''),
                 'appSecret': feishu.get('appSecret', ''),
-                'botName': feishu.get('botName', 'OpenClaw Bot'),
+                'name': feishu.get('name', 'OpenClaw Bot'),
             }
         }
 
@@ -896,7 +938,7 @@ def merge_feishu_accounts_from_env(channels, env):
         if not is_valid_account_id(account_id):
             raise ValueError(f'FEISHU_ACCOUNTS_JSON 账号 ID 不合法: {account_id}，仅支持小写字母、数字、-、_')
         if not isinstance(account_cfg, dict) or not is_feishu_account_config(account_cfg):
-            raise ValueError(f'FEISHU_ACCOUNTS_JSON 账号配置非法: {account_id}，至少包含 appId/appSecret/botName/dmPolicy/groupPolicy 中的一项')
+            raise ValueError(f'FEISHU_ACCOUNTS_JSON 账号配置非法: {account_id}，至少包含 appId/appSecret/name 中的一项')
 
         old_cfg = accounts.get(account_id)
         if not isinstance(old_cfg, dict):
@@ -916,8 +958,8 @@ def merge_feishu_accounts_from_env(channels, env):
                 feishu['appId'] = default_cfg['appId']
             if default_cfg.get('appSecret'):
                 feishu['appSecret'] = default_cfg['appSecret']
-            if default_cfg.get('botName'):
-                feishu['botName'] = default_cfg['botName']
+            if default_cfg.get('name'):
+                feishu['name'] = default_cfg['name']
         print('✅ 已从飞书多账号环境变量同步配置')
     return changed
 
@@ -1371,6 +1413,10 @@ def sync_models(ctx):
 
 
 def sync_agent_and_tools(ctx):
+    if not is_openclaw_sync_enabled(ctx.env):
+        print('ℹ️ 已关闭整体配置同步，跳过 Agent 与工具同步')
+        return
+
     sandbox = ensure_path(ctx.config, ['agents', 'defaults', 'sandbox'])
     # 参考官方文档模式: off | non-main | all
     sandbox_mode = (ctx.env.get('OPENCLAW_SANDBOX_MODE') or 'off').strip().lower()
@@ -1439,13 +1485,7 @@ def sync_feishu_channel(ctx, channel):
         'allowFrom': parse_csv(env.get('FEISHU_ALLOW_FROM')) or ctx.default_allow_from,
         'groupPolicy': env.get('FEISHU_GROUP_POLICY') or ctx.default_group_policy,
         'groupAllowFrom': parse_csv(env.get('FEISHU_GROUP_ALLOW_FROM')),
-        'threadSession': parse_bool(env.get('FEISHU_THREAD_SESSION', 'true'), True),
-        'replyMode': env.get('FEISHU_REPLY_MODE') or 'auto',
         'streaming': parse_bool(env.get('FEISHU_STREAMING', 'true'), True),
-        'footer': {
-            'elapsed': parse_bool(env.get('FEISHU_FOOTER_ELAPSED', 'true'), True),
-            'status': parse_bool(env.get('FEISHU_FOOTER_STATUS', 'true'), True),
-        },
         'requireMention': parse_bool(env.get('FEISHU_REQUIRE_MENTION', 'true'), True),
     })
 
@@ -1457,9 +1497,7 @@ def sync_feishu_channel(ctx, channel):
     channel['accounts'][account_id] = {
         'appId': env['FEISHU_APP_ID'],
         'appSecret': env['FEISHU_APP_SECRET'],
-        'botName': env.get('FEISHU_BOT_NAME') or 'OpenClaw Bot',
-        'dmPolicy': env.get('FEISHU_DM_POLICY') or ctx.default_dm_policy,
-        'allowFrom': parse_csv(env.get('FEISHU_ALLOW_FROM')) or ctx.default_allow_from,
+        'name': env.get('FEISHU_NAME') or 'OpenClaw Bot',
     }
 
 
@@ -1860,6 +1898,9 @@ def sync_channels_and_plugins(ctx):
     apply_channel_rules(ctx)
     apply_wecom_legacy_v1_compat(ctx)
     merge_feishu_accounts_from_env(ctx.channels, ctx.env)
+    # 环境同步后再次标准化飞书结构，确保冗余字段被移除
+    normalize_feishu_config(ctx.channels)
+    
     merge_dingtalk_accounts_from_env(ctx.channels, ctx.env)
     merge_wecom_accounts_from_env(ctx.channels, ctx.env)
     merge_qqbot_bots_from_env(ctx.channels, ctx.env)
@@ -1898,10 +1939,51 @@ def sync_gateway(ctx):
     print('✅ Gateway 同步完成')
 
 
+def migrate_tts_config(config):
+    messages = config.get('messages')
+    if not isinstance(messages, dict):
+        return
+    
+    tts = messages.get('tts')
+    if not isinstance(tts, dict):
+        return
+    
+    # 检测旧版格式：tts 下直接包含 edge 且没有 providers
+    if 'edge' in tts and 'providers' not in tts:
+        print('检测到旧版 TTS 配置格式，正在执行自动迁移...')
+        old_edge = tts.pop('edge')
+        if not isinstance(old_edge, dict):
+            old_edge = {}
+        
+        provider = tts.get('provider', 'edge')
+        providers = {
+            'edge': {
+                'voice': old_edge.get('voice', 'zh-CN-XiaoxiaoNeural'),
+                'lang': old_edge.get('lang', 'zh-CN'),
+                'outputFormat': old_edge.get('outputFormat', 'ogg-24khz-16bit-mono-opus'),
+                'pitch': old_edge.get('pitch', '+0Hz'),
+                'rate': old_edge.get('rate', '+0%'),
+                'volume': old_edge.get('volume', '+0%'),
+                'timeoutMs': old_edge.get('timeoutMs', 30000),
+            }
+        }
+        
+        tts['auto'] = tts.get('auto', 'off')
+        tts['mode'] = tts.get('mode', 'final')
+        tts['provider'] = provider
+        tts['providers'] = providers
+        print('✅ TTS 配置迁移完成')
+
+
 def sync():
     path = os.environ.get('CONFIG_FILE', '/home/node/.openclaw/openclaw.json')
     try:
+        if not is_openclaw_sync_enabled(os.environ):
+            print('ℹ️ 已关闭整体配置同步，跳过所有环境变量同步逻辑')
+            return
+
         config = load_config_with_compat(path)
+        migrate_tts_config(config)
         ctx = SyncContext(config, os.environ)
 
         migrate_feishu_config(ctx.channels)

@@ -113,8 +113,19 @@
   "messages": {
     "ackReactionScope": "group-mentions",
     "tts": {
-      "edge": {
-        "voice": "zh-CN-XiaoxiaoNeural"
+      "auto": "off",
+      "mode": "final",
+      "provider": "edge",
+      "providers": {
+        "edge": {
+          "voice": "zh-CN-XiaoxiaoNeural",
+          "lang": "zh-CN",
+          "outputFormat": "ogg-24khz-16bit-mono-opus",
+          "pitch": "+0Hz",
+          "rate": "+0%",
+          "volume": "+0%",
+          "timeoutMs": 30000
+        }
       }
     }
   },
@@ -141,53 +152,44 @@
     },
     "feishu": {
       "enabled": true,
-      "appId": "your-app-id",
-      "appSecret": "your-app-secret",
       "dmPolicy": "open",
-      "allowFrom": ["*"],
-      "groupPolicy": "allowlist",
-      "groupAllowFrom": ["ou_user1", "ou_user2", "oc_chat1"],
-      "threadSession": true,
-      "replyMode": "auto",
+      "allowFrom": [
+        "*"
+      ],
+      "groupPolicy": "open",
       "streaming": true,
-      "footer": {
-        "elapsed": true,
-        "status": true
-      },
       "requireMention": true,
       "accounts": {
         "default": {
           "appId": "your-app-id",
           "appSecret": "your-app-secret",
-          "botName": "OpenClaw Bot"
+          "name": "OpenClaw Bot"
         },
         "work": {
           "appId": "cli_work_yyy",
           "appSecret": "work_secret_yyy",
-          "botName": "工作机器人",
-          "dmPolicy": "allowlist",
-          "allowFrom": ["ou_5b990e213988b9bcf396f955a50b2a22", "ou_1234567890abcdef"]
+          "name": "工作机器人"
         },
         "support": {
           "appId": "cli_support_zzz",
           "appSecret": "support_secret_zzz",
-          "botName": "客服机器人",
-          "dmPolicy": "open",
-          "allowFrom": ["*"]
+          "name": "客服机器人"
         }
       },
+      "appId": "your-app-id",
+      "appSecret": "your-app-secret",
+      "groupAllowFrom": [
+
+      ],
       "groups": {
-        "*": { "requireMention": true },
-        "oc_83e1c0d069b94efc09ad22e05bc06365": {
-          "requireMention": false,
-          "groupPolicy": "open"
+        "*": {
+          "requireMention": true
         },
         "oc_dev_123456789": {
-          "requireMention": false,
-          "groupPolicy": "allowlist",
-          "allowFrom": ["ou_dev_001", "ou_dev_002"]
+          "requireMention": false
         }
-      }
+      },
+      "defaultAccount": "default"
     },
     "dingtalk": {
       "enabled": true,
