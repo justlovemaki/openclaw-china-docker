@@ -94,21 +94,31 @@ RUN mkdir -p /home/node/.linuxbrew/Homebrew && \
     chown -R node:node /home/node/.linuxbrew && \
     chmod -R g+rwX /home/node/.linuxbrew
 
-# 3.3 安装 OpenClaw 插件（IM 通道 + 扩展）
+# 3.3.1 克隆 napcat 插件
 RUN cd /home/node/.openclaw/extensions && \
-    git clone --depth 1 -b v4.17.25 https://github.com/Daiyimo/openclaw-napcat.git napcat && \
-    cd napcat && \
-    npm install --production && \
-    timeout 300 openclaw plugins install -l . || true && \
-    cd /home/node/.openclaw/extensions && \
-    timeout 300 openclaw plugins install clawhub:openclaw-memory-plugin && \
+    git clone --depth 1 -b v4.17.25 https://github.com/Daiyimo/openclaw-napcat.git napcat
+
+# 3.3.2 安装 napcat npm 依赖
+RUN cd /home/node/.openclaw/extensions/napcat && \
+    npm install --production
+
+# 3.3.3 安装 napcat openclaw 插件
+RUN cd /home/node/.openclaw/extensions/napcat && \
+    timeout 300 openclaw plugins install -l . || true
+
+# 3.3.4 安装 ClawHub 插件（napcat 之外的 IM 通道）
+RUN timeout 300 openclaw plugins install clawhub:openclaw-memory-plugin && \
     timeout 300 openclaw plugins install clawhub:humanizeai && \
-    timeout 300 openclaw plugins install clawhub:@openclaw/ralph-loop && \
-    timeout 300 openclaw plugins install @soimy/dingtalk || true && \
+    timeout 300 openclaw plugins install clawhub:@openclaw/ralph-loop
+
+# 3.3.5 安装第三方 IM 插件（钉钉/QQ/企微/内存插件）
+RUN timeout 300 openclaw plugins install @soimy/dingtalk || true && \
     timeout 300 openclaw plugins install @tencent-connect/openclaw-qqbot@latest || true && \
     timeout 300 openclaw plugins install @sunnoy/wecom || true && \
-    timeout 300 openclaw plugins install memory-lancedb-pro@beta || true && \
-    mkdir -p /home/node/.openclaw /home/node/.openclaw-seed && \
+    timeout 300 openclaw plugins install memory-lancedb-pro@beta || true
+
+# 3.3.6 清理 .git 目录并打包为 seed
+RUN mkdir -p /home/node/.openclaw /home/node/.openclaw-seed && \
     find /home/node/.openclaw/extensions -name ".git" -type d -exec rm -rf {} + && \
     mv /home/node/.openclaw/extensions /home/node/.openclaw-seed/ && \
     printf '%s\n' '2026.3.31' > /home/node/.openclaw-seed/extensions/.seed-version && \
