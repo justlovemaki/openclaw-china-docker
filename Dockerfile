@@ -121,7 +121,7 @@ RUN mkdir -p /home/node/.openclaw /home/node/.openclaw-seed && \
     find /home/node/.openclaw/extensions -name ".git" -type d -exec rm -rf {} + && \
     mv /home/node/.openclaw/extensions /home/node/.openclaw-seed/ && \
     printf '%s\n' '2026.3.31' > /home/node/.openclaw-seed/extensions/.seed-version && \
-    rm -rf /tmp/* /home/node/.npm /home/node/.cache
+    rm -rf /home/node/.npm /home/node/.cache
 USER root
 
 # 4.1 全局 Node 工具（mcporter, clawhub, agent-browser）
