@@ -107,8 +107,8 @@ RUN cd /home/node/.openclaw/extensions/napcat && \
     timeout 300 openclaw plugins install -l . || true
 
 # 3.3.4 安装 ClawHub 插件（napcat 之外的 IM 通道）
-RUN timeout 300 openclaw plugins install clawhub:humanizeai && \
-    timeout 300 openclaw plugins install clawhub:@openclaw/ralph-loop
+RUN timeout 300 openclaw plugins install clawhub:humanizeai || true && \
+    timeout 300 openclaw plugins install clawhub:@openclaw/ralph-loop || true
 
 # 3.3.5 安装第三方 IM 插件（钉钉/QQ/企微/内存插件）
 RUN timeout 300 openclaw plugins install @soimy/dingtalk || true && \
