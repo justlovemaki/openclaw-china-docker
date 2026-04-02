@@ -4,14 +4,16 @@
 
 FROM node:22-slim
 
-# =============================================================================
-# 环境变量配置
-# =============================================================================
+# 从 Python 官方镜像拷贝 Python 3.12 (确保使用与 node 镜像一致的 Debian Bookworm 版本)
+COPY --from=python:3.12-slim-bookworm /usr/local /usr/local
+
+# 设置工作目录
+WORKDIR /app
+
+# 设置环境变量
 ENV BUN_INSTALL="/usr/local" \
     PATH="/usr/local/bin:$PATH" \
     DEBIAN_FRONTEND=noninteractive
-
-WORKDIR /app
 
 # =============================================================================
 # Phase 1: 系统层 - 基础依赖（缓存优先级最高，变更最少）
@@ -23,57 +25,59 @@ RUN sed -i 's@deb.debian.org@mirrors.aliyun.com@g' /etc/apt/sources.list.d/debia
     sed -i 's@security.debian.org@mirrors.aliyun.com@g' /etc/apt/sources.list.d/debian.sources && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
-        bash ca-certificates chromium curl docker.io build-essential ffmpeg \
-        fonts-liberation fonts-noto-cjk fonts-noto-color-emoji \
-        git gosu jq locales openssh-client procps python3 socat \
-        tini unzip pipx python3-venv python3-pip websockify && \
+        bash \
+        ca-certificates \
+        chromium \
+        curl \
+        docker.io \
+        build-essential \
+        ffmpeg \
+        fonts-liberation \
+        fonts-noto-cjk \
+        fonts-noto-color-emoji \
+        git \
+        gosu \
+        jq \
+        locales \
+        openssh-client \
+        procps \
+        socat \
+        tini \
+        unzip && \
     sed -i 's/^# *en_US.UTF-8 UTF-8$/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
     locale-gen && \
     printf 'LANG=en_US.UTF-8\nLANGUAGE=en_US:en\nLC_ALL=en_US.UTF-8\n' > /etc/default/locale && \
+    # 配置 git 使用 HTTPS 替代 SSH
+    git config --system url."https://github.com/".insteadOf ssh://git@github.com/ && \
+    # 设置 npm 镜像并安装全局包
+    npm config set registry https://registry.npmmirror.com && \
+    npm install -g openclaw@2026.3.31 opencode-ai@latest clawhub playwright playwright-extra puppeteer-extra-plugin-stealth @steipete/bird && \
+    # 安装 bun、uv 和 qmd
+    curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr/local bash && \
+    curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh && \
+    # 建立 python3 -> python 链接并安装 websockify
+    ln -sf /usr/local/bin/python3 /usr/local/bin/python && \
+    /usr/local/bin/python3 -m pip install --no-cache-dir websockify && \
+    npm install -g @tobilu/qmd@1.1.6 && \
+    # 安装 Playwright 浏览器依赖
+    npx playwright install chromium --with-deps && \
+    # 清理 apt 缓存
+    apt-get purge -y --auto-remove && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# 1.2 Git 配置（HTTPS 替代 SSH，避免密钥问题）
-RUN git config --system url."https://github.com/".insteadOf ssh://git@github.com/
-
 # =============================================================================
-# Phase 2: Node 层 - npm 核心工具（变更较少）
+# Phase 2: 运行时层 - 其他语言工具（变更较少）
 # =============================================================================
 
-# 2.1 设置 npm 镜像（中国镜像源）
-RUN npm config set registry https://registry.npmmirror.com
-
-# 2.2 全局 npm 工具（OpenClaw 核心依赖）
-RUN npm install -g \
-        openclaw@2026.3.31 \
-        opencode-ai@latest \
-        clawhub \
-        playwright \
-        playwright-extra \
-        puppeteer-extra-plugin-stealth \
-        @steipete/bird \
-        @tobilu/qmd@1.1.6 && \
-    npm cache clean --force
-
-# 2.3 Playwright 浏览器（体积大，独立层便于缓存）
-RUN npx playwright install chromium --with-deps && \
-    rm -rf /root/.npm /root/.cache /tmp/*
-
-# =============================================================================
-# Phase 3: 运行时层 - 其他语言工具（变更较少）
-# =============================================================================
-
-# 3.1 Bun 运行时
-RUN curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr/local bash
-
-# 3.2 UV (Python 包管理器) - 使用多阶段构建，更小更快
+# 2.1 UV (Python 包管理器) - 使用多阶段构建，更小更快
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # =============================================================================
-# Phase 4: 应用层 - OpenClaw 插件与配置（变更较频繁）
+# Phase 3: 应用层 - OpenClaw 插件与配置（变更较频繁）
 # =============================================================================
 
-# 4.1 创建 OpenClaw 目录结构
+# 3.1 创建 OpenClaw 目录结构
 RUN mkdir -p /home/node/.openclaw/workspace /home/node/.openclaw/extensions && \
     chown -R node:node /home/node
 
@@ -82,7 +86,7 @@ USER node
 ENV HOME=/home/node
 WORKDIR /home/node
 
-# 4.2 安装 Linuxbrew（Homebrew Linux 版本）
+# 3.2 安装 Linuxbrew（Homebrew Linux 版本）
 RUN mkdir -p /home/node/.linuxbrew/Homebrew && \
     git clone --depth 1 https://github.com/Homebrew/brew /home/node/.linuxbrew/Homebrew && \
     mkdir -p /home/node/.linuxbrew/bin && \
@@ -90,7 +94,7 @@ RUN mkdir -p /home/node/.linuxbrew/Homebrew && \
     chown -R node:node /home/node/.linuxbrew && \
     chmod -R g+rwX /home/node/.linuxbrew
 
-# 4.3 安装 OpenClaw 插件（IM 通道 + 扩展）
+# 3.3 安装 OpenClaw 插件（IM 通道 + 扩展）
 RUN cd /home/node/.openclaw/extensions && \
     git clone --depth 1 -b v4.17.25 https://github.com/Daiyimo/openclaw-napcat.git napcat && \
     cd napcat && \
@@ -103,6 +107,7 @@ RUN cd /home/node/.openclaw/extensions && \
     timeout 300 openclaw plugins install @soimy/dingtalk || true && \
     timeout 300 openclaw plugins install @tencent-connect/openclaw-qqbot@latest || true && \
     timeout 300 openclaw plugins install @sunnoy/wecom || true && \
+    timeout 300 openclaw plugins install memory-lancedb-pro@beta || true && \
     mkdir -p /home/node/.openclaw /home/node/.openclaw-seed && \
     find /home/node/.openclaw/extensions -name ".git" -type d -exec rm -rf {} + && \
     mv /home/node/.openclaw/extensions /home/node/.openclaw-seed/ && \
@@ -110,7 +115,7 @@ RUN cd /home/node/.openclaw/extensions && \
     rm -rf /tmp/* /home/node/.npm /home/node/.cache
 USER root
 
-# 5.1 全局 Node 工具（mcporter, clawhub, agent-browser）
+# 4.1 全局 Node 工具（mcporter, clawhub, agent-browser）
 RUN npm install -g mcporter clawhub agent-browser && \
     npm cache clean --force
 
@@ -118,21 +123,21 @@ RUN npm install -g mcporter clawhub agent-browser && \
 USER node
 WORKDIR /home/node/.openclaw/workspace/
 
-# 5.2 配置 mcporter MCP 服务
+# 4.2 配置 mcporter MCP 服务
 RUN mcporter config add rednote http://rednote.mcp:18060/mcp && \
     mcporter config add freesearch --command "uvx mcp-server-freesearch --break-system-packages" --env SEARXNG_API_URL="https://searx.bndkt.io"
 
 WORKDIR /home/node/.openclaw/
 
 # =============================================================================
-# Phase 6: ClawHub 技能安装（需要认证）
+# Phase 5: ClawHub 技能安装（需要认证）
 # =============================================================================
 
-# 6.1 ClawHub 登录（使用 BuildKit secrets）
+# 5.1 ClawHub 登录（使用 BuildKit secrets）
 RUN --mount=type=secret,id=clawhub,env=CLAWHUB_TOKEN,required=true \
     clawhub login --token "$CLAWHUB_TOKEN" --no-browser
 
-# 6.2 安装 ClawHub 技能包
+# 5.2 安装 ClawHub 技能包
 RUN clawhub install --force proactive-agent && \
     clawhub install mcporter && \
     clawhub install self-improving && \
@@ -159,13 +164,13 @@ RUN clawhub install --force proactive-agent && \
     clawhub install ontology && \
     clawhub install multi-search-engine
 
-# 6.3 克隆外部技能仓库
+# 5.3 克隆外部技能仓库
 RUN git clone https://github.com/ACautomata/model-guidance /home/node/.openclaw/skills/model-guidance && \
     git clone https://github.com/ACautomata/openclaw-optimizer /home/node/.openclaw/skills/openclaw-optimizer && \
     git clone https://github.com/win4r/openclaw-workspace /home/node/.openclaw/skills/openclaw-workspace
 
 # =============================================================================
-# Phase 7: 最终配置
+# Phase 6: 最终配置
 # =============================================================================
 
 WORKDIR /home/node
@@ -173,13 +178,13 @@ ENV NODE_OPTIONS="--max-old-space-size=1280"
 
 USER root
 
-# 7.1 复制并配置初始化脚本
+# 6.1 复制并配置初始化脚本
 COPY ./init.sh /usr/local/bin/init.sh
 RUN sed -i 's/\r$//' /usr/local/bin/init.sh && \
     chmod +x /usr/local/bin/init.sh && \
     chown -R node:node /home/node/.openclaw/ /home/node/.npm/
 
-# 7.2 最终环境变量
+# 6.2 最终环境变量
 ENV HOME=/home/node \
     TERM=xterm-256color \
     NODE_PATH=/usr/local/lib/node_modules \
@@ -191,10 +196,10 @@ ENV HOME=/home/node \
     HOMEBREW_NO_AUTO_UPDATE=1 \
     HOMEBREW_NO_INSTALL_CLEANUP=1
 
-# 7.3 暴露端口
+# 6.3 暴露端口
 EXPOSE 18789 18790
 
-# 7.4 健康检查 - 检测 Gateway 端口是否可达
+# 6.4 健康检查 - 检测 Gateway 端口是否可达
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
     CMD bash -c 'cat < /dev/tcp/localhost/${OPENCLAW_GATEWAY_PORT:-18789}' > /dev/null 2>&1 || exit 1
 

@@ -1267,6 +1267,13 @@ class SyncContext:
         return isinstance(entry, dict) and (entry.get('enabled') is False)
 
 
+def set_qqbot_plugin_entries(ctx, enabled, install=False):
+    ctx.entries['openclaw-qqbot'] = {'enabled': enabled}
+    ctx.entries['qqbot'] = {'enabled': enabled}
+    if enabled and install:
+        ctx.install('openclaw-qqbot')
+
+
 def is_openclaw_sync_enabled(env):
     sync_all = (env.get('SYNC_OPENCLAW_CONFIG') or 'true').strip().lower()
     return sync_all in ('', 'true', '1', 'yes')
@@ -1816,13 +1823,13 @@ def apply_multi_account_plugin_state(ctx):
     qqbot_accounts = get_qqbot_accounts(ctx.channels.get('qqbot'))
     if ctx.has_qqbot_bots_env:
         if qqbot_accounts:
-            ctx.enable_channel('openclaw-qqbot', install=True)
+            set_qqbot_plugin_entries(ctx, True, install=True)
             print('✅ 已根据 QQ 机器人多 Bot 环境变量启用插件 openclaw-qqbot')
         else:
-            ctx.disable_channel('openclaw-qqbot')
+            set_qqbot_plugin_entries(ctx, False)
             print('ℹ️ QQ 机器人多 Bot 环境变量未生成有效 Bot，保持插件禁用')
     elif not ctx.has_qqbot_any_env:
-        ctx.disable_channel('openclaw-qqbot')
+        set_qqbot_plugin_entries(ctx, False)
         print('ℹ️ QQ 机器人未提供任何环境变量，保持插件禁用')
 
 
@@ -1883,6 +1890,7 @@ def apply_feishu_plugin_switch(ctx):
 
 
 def finalize_plugins(ctx):
+    
     ctx.plugins['allow'] = [name for name, entry in ctx.entries.items() if entry.get('enabled')]
     print('📦 已配置插件集合: ' + ', '.join(ctx.plugins['allow']))
 
