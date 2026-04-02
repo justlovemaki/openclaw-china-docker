@@ -154,7 +154,6 @@ RUN clawhub install --force proactive-agent && \
     clawhub install --force browser-use && \
     clawhub install --force evolver && \
     clawhub install --force capability-evolver && \
-    clawhub install --force summarize && \
     clawhub install --force humanizer && \
     clawhub install skill-vetter && \
     clawhub install --force clawddocs && \
