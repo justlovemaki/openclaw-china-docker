@@ -161,7 +161,8 @@ RUN clawhub install --force proactive-agent || true && \
 # 5.3 克隆外部技能仓库
 RUN git clone https://github.com/ACautomata/model-guidance /home/node/.openclaw/skills/model-guidance && \
     git clone https://github.com/ACautomata/openclaw-optimizer /home/node/.openclaw/skills/openclaw-optimizer && \
-    git clone https://github.com/win4r/openclaw-workspace /home/node/.openclaw/skills/openclaw-workspace
+    git clone https://github.com/win4r/openclaw-workspace /home/node/.openclaw/skills/openclaw-workspace && \
+    git clone https://github.com/CortexReach/memory-lancedb-pro-skill /home/node/.openclaw/skills/memory-lancedb-pro-skill
 
 # 5.4 打包插件为 seed（在所有插件安装完成后，确保 clawhub 插件也包含在内）
 RUN mkdir -p /home/node/.openclaw-seed && \
