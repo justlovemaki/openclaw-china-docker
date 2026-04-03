@@ -94,34 +94,18 @@ RUN mkdir -p /home/node/.linuxbrew/Homebrew && \
     chown -R node:node /home/node/.linuxbrew && \
     chmod -R g+rwX /home/node/.linuxbrew
 
-# 3.3.1 克隆 napcat 插件
+# 3.3 安装 npm 插件（遵循官方单层合并模式）
 RUN cd /home/node/.openclaw/extensions && \
-    git clone --depth 1 -b v4.17.25 https://github.com/Daiyimo/openclaw-napcat.git napcat
-
-# 3.3.2 安装 napcat npm 依赖
-RUN cd /home/node/.openclaw/extensions/napcat && \
-    npm install --production
-
-# 3.3.3 安装 napcat openclaw 插件
-RUN cd /home/node/.openclaw/extensions/napcat && \
-    timeout 300 openclaw plugins install -l . || true
-
-# 3.3.4 安装 ClawHub 插件（napcat 之外的 IM 通道）
-RUN timeout 300 openclaw plugins install clawhub:humanizeai || true && \
-    timeout 300 openclaw plugins install clawhub:@openclaw/ralph-loop || true
-
-# 3.3.5 安装第三方 IM 插件（钉钉/QQ/企微/内存插件）
-RUN timeout 300 openclaw plugins install @soimy/dingtalk || true && \
+    git clone --depth 1 -b v4.17.25 https://github.com/Daiyimo/openclaw-napcat.git napcat && \
+    cd napcat && \
+    npm install --production && \
+    timeout 300 openclaw plugins install -l . || true && \
+    cd /home/node/.openclaw/extensions && \
+    timeout 300 openclaw plugins install @soimy/dingtalk || true && \
     timeout 300 openclaw plugins install @tencent-connect/openclaw-qqbot@latest || true && \
     timeout 300 openclaw plugins install @sunnoy/wecom || true && \
     timeout 300 openclaw plugins install memory-lancedb-pro@beta || true
 
-# 3.3.6 清理 .git 目录并打包为 seed
-RUN mkdir -p /home/node/.openclaw /home/node/.openclaw-seed && \
-    find /home/node/.openclaw/extensions -name ".git" -type d -exec rm -rf {} + && \
-    mv /home/node/.openclaw/extensions /home/node/.openclaw-seed/ && \
-    printf '%s\n' '2026.3.31' > /home/node/.openclaw-seed/extensions/.seed-version && \
-    rm -rf /home/node/.npm /home/node/.cache
 USER root
 
 # 4.1 全局 Node 工具（mcporter, clawhub, agent-browser）
@@ -142,40 +126,49 @@ WORKDIR /home/node/.openclaw/
 # Phase 5: ClawHub 技能安装（需要认证）
 # =============================================================================
 
-# 5.1 ClawHub 登录（使用 BuildKit secrets）
+# 5.1 ClawHub 登录并安装 ClawHub 插件（需要认证后安装）
 RUN --mount=type=secret,id=clawhub,env=CLAWHUB_TOKEN,required=true \
-    clawhub login --token "$CLAWHUB_TOKEN" --no-browser
+    clawhub login --token "$CLAWHUB_TOKEN" --no-browser && \
+    timeout 300 openclaw plugins install clawhub:humanizeai || true && \
+    timeout 300 openclaw plugins install clawhub:@openclaw/ralph-loop || true
 
 # 5.2 安装 ClawHub 技能包
-RUN clawhub install --force proactive-agent && \
-    clawhub install mcporter && \
-    clawhub install self-improving && \
-    clawhub install agent-browser-clawdbot && \
-    clawhub install --force browser-use && \
-    clawhub install --force evolver && \
-    clawhub install --force capability-evolver && \
-    clawhub install --force humanizer && \
-    clawhub install skill-vetter && \
-    clawhub install --force clawddocs && \
-    clawhub install --force parallel-deep-research && \
-    clawhub install --force deep-research-pro && \
-    clawhub install agent-builder && \
-    clawhub install creativity && \
-    clawhub install --force skill-refiner && \
-    clawhub install --force skill-creator && \
-    clawhub install agent && \
-    clawhub install --force agent-evaluation && \
-    clawhub install --force cron-mastery && \
-    clawhub install --force news-summary && \
-    clawhub install --force openclaw-subagents && \
-    clawhub install --force create-subagent && \
-    clawhub install ontology && \
-    clawhub install multi-search-engine
+RUN clawhub install --force proactive-agent || true && \
+    clawhub install mcporter || true && \
+    clawhub install self-improving || true && \
+    clawhub install agent-browser-clawdbot || true && \
+    clawhub install --force browser-use || true && \
+    clawhub install --force evolver || true && \
+    clawhub install --force capability-evolver || true && \
+    clawhub install --force humanizer || true && \
+    clawhub install skill-vetter || true && \
+    clawhub install --force clawddocs || true && \
+    clawhub install --force parallel-deep-research || true && \
+    clawhub install --force deep-research-pro || true && \
+    clawhub install agent-builder || true && \
+    clawhub install creativity || true && \
+    clawhub install --force skill-refiner || true && \
+    clawhub install --force skill-creator || true && \
+    clawhub install agent || true && \
+    clawhub install --force agent-evaluation || true && \
+    clawhub install --force cron-mastery || true && \
+    clawhub install --force news-summary || true && \
+    clawhub install --force openclaw-subagents || true && \
+    clawhub install --force create-subagent || true && \
+    clawhub install ontology || true && \
+    clawhub install multi-search-engine || true
 
 # 5.3 克隆外部技能仓库
 RUN git clone https://github.com/ACautomata/model-guidance /home/node/.openclaw/skills/model-guidance && \
     git clone https://github.com/ACautomata/openclaw-optimizer /home/node/.openclaw/skills/openclaw-optimizer && \
     git clone https://github.com/win4r/openclaw-workspace /home/node/.openclaw/skills/openclaw-workspace
+
+# 5.4 打包插件为 seed（在所有插件安装完成后，确保 clawhub 插件也包含在内）
+RUN mkdir -p /home/node/.openclaw-seed && \
+    find /home/node/.openclaw/extensions -name ".git" -type d -exec rm -rf {} + && \
+    mv /home/node/.openclaw/extensions /home/node/.openclaw-seed/ && \
+    printf '%s\n' '2026.3.31' > /home/node/.openclaw-seed/extensions/.seed-version && \
+    rm -rf /home/node/.npm /home/node/.cache
 
 # =============================================================================
 # Phase 6: 最终配置
