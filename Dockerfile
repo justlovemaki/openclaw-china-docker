@@ -184,7 +184,7 @@ USER root
 COPY ./init.sh /usr/local/bin/init.sh
 RUN sed -i 's/\r$//' /usr/local/bin/init.sh && \
     chmod +x /usr/local/bin/init.sh && \
-    chown -R node:node /home/node/.openclaw/ /home/node/.npm/
+    chown -R node:node /home/node/.openclaw/
 
 # 6.2 最终环境变量
 ENV HOME=/home/node \
