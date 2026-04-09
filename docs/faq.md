@@ -1,6 +1,6 @@
 # 常见问题
 
-本文汇总 [`OpenClaw-Docker-CN-IM`](../README.md) 当前版本的高频问题与排查建议，内容以 [`docker-compose.yml`](../docker-compose.yml)、[`.env.example`](../.env.example)、[`init.sh`](../init.sh) 与仓库内现有说明为准。
+本文汇总 [`OpenClaw-CN-Docker`](../README.md) 当前版本的高频问题与排查建议，内容以 [`docker-compose.yml`](../docker-compose.yml)、[`.env.example`](../.env.example)、[`init.sh`](../init.sh) 与仓库内现有说明为准。
 
 ## 修改了环境变量，但配置没有按预期生效
 

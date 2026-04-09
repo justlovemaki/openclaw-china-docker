@@ -1,6 +1,6 @@
 # AIClient-2-API 对接指南
 
-[`OpenClaw-Docker-CN-IM`](../README.md) 已支持 OpenAI 协议与 Claude 协议，可直接对接 [`AIClient-2-API`](https://github.com/justlovemaki/AIClient-2-API)。
+[`OpenClaw-CN-Docker`](../README.md) 已支持 OpenAI 协议与 Claude 协议，可直接对接 [`AIClient-2-API`](https://github.com/justlovemaki/AIClient-2-API)。
 
 ## 前置准备
 

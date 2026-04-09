@@ -1,6 +1,6 @@
 # 快速开始
 
-本文适合第一次部署 [`OpenClaw-Docker-CN-IM`](../README.md) 的用户，覆盖预构建镜像部署、自行构建镜像、升级、日志查看与进入容器等常用操作。
+本文适合第一次部署 [`OpenClaw-CN-Docker`](../README.md) 的用户，覆盖预构建镜像部署、自行构建镜像、升级、日志查看与进入容器等常用操作。
 
 ## 部署方式概览
 
@@ -21,15 +21,15 @@
 可以直接下载：
 
 ```bash
-wget https://raw.githubusercontent.com/justlovemaki/OpenClaw-Docker-CN-IM/main/docker-compose.yml
-wget https://raw.githubusercontent.com/justlovemaki/OpenClaw-Docker-CN-IM/main/.env.example
+wget https://raw.githubusercontent.com/justlovemaki/OpenClaw-CN-Docker/main/docker-compose.yml
+wget https://raw.githubusercontent.com/justlovemaki/OpenClaw-CN-Docker/main/.env.example
 ```
 
 也可以直接克隆仓库，便于后续升级维护：
 
 ```bash
-git clone https://github.com/justlovemaki/OpenClaw-Docker-CN-IM.git
-cd OpenClaw-Docker-CN-IM
+git clone https://github.com/justlovemaki/OpenClaw-CN-Docker.git
+cd OpenClaw-CN-Docker
 ```
 
 ### 2. 初始化环境变量
@@ -91,8 +91,8 @@ docker compose down
 ### 1. 克隆仓库
 
 ```bash
-git clone https://github.com/justlovemaki/OpenClaw-Docker-CN-IM.git
-cd OpenClaw-Docker-CN-IM
+git clone https://github.com/justlovemaki/OpenClaw-CN-Docker.git
+cd OpenClaw-CN-Docker
 ```
 
 ### 2. 构建镜像
@@ -146,8 +146,8 @@ docker compose up -d
 
 ```bash
 # 首次使用（如果还没有克隆仓库）
-git clone https://github.com/justlovemaki/OpenClaw-Docker-CN-IM.git
-cd OpenClaw-Docker-CN-IM
+git clone https://github.com/justlovemaki/OpenClaw-CN-Docker.git
+cd OpenClaw-CN-Docker
 
 # 后续升级时同步仓库
 git pull

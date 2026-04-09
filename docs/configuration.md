@@ -1,6 +1,6 @@
 # 配置指南
 
-本文聚焦 [`OpenClaw-Docker-CN-IM`](../README.md) 的核心配置项，包括模型、Gateway、工作空间、环境变量组织方式，以及与 [`openclaw.json.example`](../openclaw.json.example) 的对应关系。
+本文聚焦 [`OpenClaw-CN-Docker`](../README.md) 的核心配置项，包括模型、Gateway、工作空间、环境变量组织方式，以及与 [`openclaw.json.example`](../openclaw.json.example) 的对应关系。
 
 ## 配置文件关系
 
