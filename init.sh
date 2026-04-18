@@ -14,6 +14,55 @@ log_section() {
     echo "=== $1 ==="
 }
 
+modify_node_uid_gid() {
+    log_section "修改 Node 用户 UID/GID"
+
+    # 从环境变量读取目标 UID/GID
+    local TARGET_UID="${TARGET_UID:-1000}"
+    local TARGET_GID="${TARGET_GID:-1000}"
+
+    echo "目标 UID/GID: ${TARGET_UID}:${TARGET_GID}"
+
+    # 获取当前 node 用户的 UID/GID
+    if id "node" &>/dev/null; then
+        local CURRENT_UID=${NODE_UID}
+        local CURRENT_GID=${NODE_GID}
+        echo "当前 node 用户: UID=${CURRENT_UID}, GID=${CURRENT_GID}"
+
+        # 只在需要时修改
+        if [ "${CURRENT_UID}" != "${TARGET_UID}" ] || [ "${CURRENT_GID}" != "${TARGET_GID}" ]; then
+            echo "正在修改 node 用户的 UID/GID..."
+            # 修改组 GID
+            if [ "${CURRENT_GID}" != "${TARGET_GID}" ]; then
+                echo "修改组 GID: ${CURRENT_GID} -> ${TARGET_GID}"
+                groupmod -o -g "${TARGET_GID}" node 2>/dev/null || {
+                    echo "警告: 组 GID 修改失败，可能 GID ${TARGET_GID} 已被占用"
+                    echo "尝试创建新组并修改用户..."
+                    # 创建新组并将用户添加到新组
+                    groupadd -g "${TARGET_GID}" node_new_group 2>/dev/null
+                    usermod -g node_new_group node 2>/dev/null || true
+                }
+            fi
+            # 修改用户 UID
+            if [ "${CURRENT_UID}" != "${TARGET_UID}" ]; then
+                echo "修改用户 UID: ${CURRENT_UID} -> ${TARGET_UID}"
+                usermod -o -u "${TARGET_UID}" node 2>/dev/null || \
+                echo "警告: 用户 UID 修改可能失败（UID ${TARGET_UID} 可能已被占用）"
+            fi
+            echo "✅ Node 用户 UID/GID 修改完成"
+        else
+            echo "Node 用户 UID/GID 已为目标值，无需修改"
+        fi
+    else
+        echo "错误: node 用户不存在！"
+        exit 1
+    fi
+    # 更新全局变量
+    NODE_UID="$(id -u node)"
+    NODE_GID="$(id -g node)"
+    echo "最终 node 用户: UID=${NODE_UID}, GID=${NODE_GID}"
+}
+
 ensure_workspace_root_link() {
     mkdir -p "$OPENCLAW_HOME"
 
@@ -2464,6 +2513,7 @@ finalize_permissions() {
 
 main() {
     log_section "OpenClaw 初始化脚本"
+    modify_node_uid_gid
     ensure_directories
     ensure_config_persistence
     fix_permissions_if_needed
