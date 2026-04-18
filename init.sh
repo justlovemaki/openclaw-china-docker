@@ -17,7 +17,7 @@ log_section() {
 modify_node_uid_gid() {
     log_section "修改 Node 用户 UID/GID"
 
-    # 从环境变量读取目标 UID/GID，支持多种环境变量名称
+    # 从环境变量读取目标 UID/GID
     local TARGET_UID="${TARGET_UID:-1000}"
     local TARGET_GID="${TARGET_GID:-1000}"
 
